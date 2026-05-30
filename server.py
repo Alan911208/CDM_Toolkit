@@ -2,8 +2,13 @@
 CDM Toolkit Web Server — FastAPI application.
 Start with: cdm-tools serve  (or: python server.py)
 """
+import asyncio
 import os
+import subprocess
 import sys
+import tempfile
+import uuid as _uuid
+import time as _time
 import webbrowser
 from pathlib import Path
 
@@ -95,7 +100,6 @@ async def api_scan_chars(
     system: str = Form("Rave"),
 ):
     """Scan for special characters in uploaded workbook."""
-    import tempfile
     from openpyxl import load_workbook
     from openpyxl.utils import get_column_letter
 
@@ -155,6 +159,195 @@ async def api_unit_convert(
                                           standard_unit, test_filter)
     return FileResponse(result_path, filename="units_result.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── SAS Execution ──────────────────────────────────────────────────────────
+
+SAS_EXE = r"C:\Program Files\SASHome\SASFoundation\9.4\sas.exe"
+SAS_CONFIGS = {
+    "zh": r"C:\Program Files\SASHome\SASFoundation\9.4\nls\zh\SASV9.CFG",
+    "u8": r"C:\Program Files\SASHome\SASFoundation\9.4\nls\u8\SASV9.CFG",
+}
+SAS_MACROS_DIR = Path(__file__).parent / "sas_macros"
+
+# SAS macro metadata — name, description, category
+SAS_MACROS = [
+    # Category 1: Data Check & Validation
+    {"id": "01_varExist", "name": "varExist", "cat": "数据检查与验证", "desc": "检查数据集中是否存在指定变量", "params": "dsn=, var="},
+    {"id": "02_dsRecCount", "name": "dsRecCount", "cat": "数据检查与验证", "desc": "列出目录中所有数据集的记录/变量计数", "params": "lib=, label="},
+    {"id": "03_dateVarScan", "name": "dateVarScan", "cat": "数据检查与验证", "desc": "扫描库中所有含 DTC/DAT/TIM 的字符变量", "params": "libref="},
+    # Category 2: Data Manipulation
+    {"id": "04_dateCut", "name": "dateCut", "cat": "数据操作与清理", "desc": "按截止日期过滤临床数据库", "params": "src=, tgt=, cutoff=, visitVar=, otherVar=, keepAll=FORMATS CO, byVar=Usubjid Visit"},
+    {"id": "05_textSplit", "name": "textSplit", "cat": "数据操作与清理", "desc": "将长字符变量（>200）拆分为多个列", "params": "dsn=, var="},
+    {"id": "06_stripBlank", "name": "stripBlank", "cat": "数据操作与清理", "desc": "从 CDM 数据集中移除空白/占位行", "params": "inlib=, outlib=, insets=, outsets=, idxVar=SEQNUM, keepPS=NO"},
+    {"id": "07_dropVar", "name": "dropVar", "cat": "数据操作与清理", "desc": "从库中所有数据集批量删除变量", "params": "var=, src=, tgt="},
+    {"id": "08_dropVarSuffix", "name": "dropVarSuffix", "cat": "数据操作与清理", "desc": "批量删除名称以指定后缀结尾的变量", "params": "suffix=_u, src=, tgt="},
+    {"id": "09_mergeVar", "name": "mergeVar", "cat": "数据操作与清理", "desc": "从源数据集跨库合并变量", "params": "form=, vars=, key=, src=, tgt="},
+    # Category 3: Data I/O
+    {"id": "10_sas2csv", "name": "sas2csv", "cat": "数据转换与I/O", "desc": "将目录中所有 SAS 数据集批量转换为 CSV", "params": "src=, tgt="},
+    {"id": "11_csv2sas", "name": "csv2sas", "cat": "数据转换与I/O", "desc": "将 CSV 文件导入为 SAS 数据集", "params": "file=, dsn=csv2sas, naming=XLS2SAS, lrecl=5000"},
+    {"id": "12_xlsxImport", "name": "xlsxImport", "cat": "数据转换与I/O", "desc": "将 Excel 工作表批量导入为 SAS 数据集", "params": "file=, out="},
+    {"id": "13_sas2xlsx", "name": "sas2xlsx", "cat": "数据转换与I/O", "desc": "将 SAS 数据集导出到单个 Excel 工作簿", "params": "lib=, dir=, name=, ext=xlsx"},
+    {"id": "15_xls2sas", "name": "xls2sas", "cat": "数据转换与I/O", "desc": "将 Excel 工作表导入 SAS 数据集", "params": "file=, insheet=, outset=, outlib=work, ..."},
+    # Category 4: Date & Version
+    {"id": "16_stampRunDate", "name": "stampRunDate", "cat": "日期与版本管理", "desc": "为库中所有数据集添加固定运行日期变量", "params": "lib=, date="},
+    {"id": "17_runDateDiff", "name": "runDateDiff", "cat": "日期与版本管理", "desc": "新旧版本之间逐行比较单个数据集", "params": "oldlib=, oldset=, newlib=, newset=, outlib=, outset=, keyvar=, exvar="},
+    {"id": "18_batchRunDateDiff", "name": "batchRunDateDiff", "cat": "日期与版本管理", "desc": "将 runDateDiff 批量应用于库中所有数据集", "params": "newLib=, oldLib=, outLib=, keyvar=, exvar="},
+    {"id": "21_versionDiff", "name": "versionDiff", "cat": "日期与版本管理", "desc": "版本比较：检测新记录/更新/停用记录", "params": "newLib=, oldLib=, outLib=, keyvar=, exclVar=, dropVar="},
+    # Category 5: QC
+    {"id": "23_qcLabCheck", "name": "qcLabCheck", "cat": "质量控制", "desc": "实验室数据 4 项自动 QC 检查", "params": "lib=, dsn=, out="},
+    {"id": "25_dmQueryReport", "name": "dmQueryReport", "cat": "质量控制", "desc": "生成 DMR Query Summary 表（T5.1-T5.3）为 RTF", "params": "qSheet=, form=, outRTF=, ver=3"},
+    # Standalone
+    {"id": "rawdata_export", "name": "rawdata_export", "cat": "独立脚本", "desc": "审查原始数据并生成内容报告 Excel", "params": ""},
+]
+
+# Runtime tracking: run_id → {status, log, start_time}
+_sas_jobs: dict = {}
+
+
+@app.get("/api/sas-list")
+async def api_sas_list():
+    """Return all available SAS macros with metadata."""
+    return {"macros": SAS_MACROS, "configs": list(SAS_CONFIGS.keys())}
+
+
+@app.get("/api/sas-load/{macro_id}")
+async def api_sas_load(macro_id: str):
+    """Load a SAS macro's source code and test file."""
+    macro = next((m for m in SAS_MACROS if m["id"] == macro_id), None)
+    if not macro:
+        return {"error": f"未找到宏: {macro_id}"}
+
+    result = {"macro": macro, "source": "", "test": ""}
+
+    # Load macro source
+    macro_dir = SAS_MACROS_DIR / macro_id
+    if macro_dir.is_dir():
+        for f in macro_dir.iterdir():
+            if f.suffix == ".sas" and not f.name.startswith("test_"):
+                result["source"] = f.read_text(encoding="utf-8", errors="replace")
+            elif f.name.startswith("test_"):
+                result["test"] = f.read_text(encoding="utf-8", errors="replace")
+        # Load README
+        readme = macro_dir / "README.md"
+        if readme.exists():
+            result["readme"] = readme.read_text(encoding="utf-8", errors="replace")
+    elif macro_id == "rawdata_export":
+        sas_file = SAS_MACROS_DIR / "rawdata_export.sas"
+        if sas_file.exists():
+            result["source"] = sas_file.read_text(encoding="utf-8", errors="replace")
+
+    return result
+
+
+@app.post("/api/sas-run")
+async def api_sas_run(request: Request):
+    """Execute SAS code and return a job ID for polling."""
+    data = await request.json()
+    sas_code = data.get("code", "")
+    config_key = data.get("config", "zh")
+
+    if not sas_code.strip():
+        return {"error": "SAS 代码为空"}
+
+    config_path = SAS_CONFIGS.get(config_key, SAS_CONFIGS["zh"])
+    if not os.path.exists(SAS_EXE):
+        return {"error": f"SAS 可执行文件不存在: {SAS_EXE}"}
+    if not os.path.exists(config_path):
+        return {"error": f"SAS 配置文件不存在: {config_path}"}
+
+    job_id = _uuid.uuid4().hex[:12]
+    _sas_jobs[job_id] = {"status": "running", "log": "", "start_time": _time.time()}
+
+    # Run SAS in background
+    asyncio.create_task(_run_sas(job_id, sas_code, config_path))
+
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.get("/api/sas-status/{job_id}")
+async def api_sas_status(job_id: str):
+    """Poll SAS job status and get log output."""
+    job = _sas_jobs.get(job_id)
+    if not job:
+        return {"error": "任务不存在"}
+    return {
+        "status": job["status"],
+        "log": job["log"],
+        "elapsed": round(_time.time() - job["start_time"], 1),
+    }
+
+
+async def _run_sas(job_id: str, sas_code: str, config_path: str):
+    """Run SAS in a subprocess, capture log."""
+    job = _sas_jobs.get(job_id)
+    tmp_dir = tempfile.mkdtemp(prefix="cdm_sas_")
+    sas_file = os.path.join(tmp_dir, "program.sas")
+    log_file = os.path.join(tmp_dir, "sas_output.log")
+    lst_file = os.path.join(tmp_dir, "sas_output.lst")
+
+    # Include SASAUTOS so macros can %include helpers from their directory
+    sas_autos = str(SAS_MACROS_DIR).replace("\\", "/")
+    header = f"""
+/* CDM Toolkit — SAS Runner */
+OPTIONS NOXWAIT NOXSYNC;
+OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
+%let _cdm_tmpdir = {tmp_dir.replace(chr(92), '/')};
+"""
+    full_code = header + "\n" + sas_code
+
+    try:
+        with open(sas_file, "w", encoding="utf-8") as f:
+            f.write(full_code)
+
+        cmd = [
+            SAS_EXE,
+            "-config", config_path,
+            "-sysin", sas_file,
+            "-log", log_file,
+            "-print", lst_file,
+            "-nosplash", "-nologo",
+            "-nods", "-nonumber", "-nodate",
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=300
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            if job:
+                job["status"] = "timeout"
+                job["log"] = "⚠️ SAS 执行超时（300 秒）"
+            return
+
+        # Read log
+        log_text = ""
+        if os.path.exists(log_file):
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                log_text = f.read()
+
+        # Append stdout/stderr
+        if stdout:
+            log_text += "\n" + stdout.decode("utf-8", errors="replace")
+        if stderr:
+            log_text += "\n[STDERR]\n" + stderr.decode("utf-8", errors="replace")
+
+        if job:
+            job["status"] = "completed" if proc.returncode == 0 else "error"
+            job["log"] = log_text[-50000:]  # last 50k chars
+            job["returncode"] = proc.returncode
+
+    except Exception as e:
+        if job:
+            job["status"] = "error"
+            job["log"] = f"执行异常: {str(e)}"
 
 
 def start_server(port: int = 8520, open_browser: bool = True):

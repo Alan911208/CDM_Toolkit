@@ -15,6 +15,7 @@ const ROUTES = {
   '/files':  { title: '文件目录浏览', page: 'files.js' },
   '/dates':  { title: '日期计算', page: 'dates.js' },
   '/units':  { title: '单位转换', page: 'units.js' },
+  '/sas':    { title: 'SAS 程序', page: 'sas.js' },
 };
 
 let dashboardHTML = null;
