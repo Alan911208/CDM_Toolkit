@@ -1,0 +1,52 @@
+============================================================
+TEST RESULTS: stampRunDate
+============================================================
+
+Test Environment:
+  - 2 datasets created in a temporary library: DM (3 rows) and AE (4 rows)
+  - A fixed date is applied: '07JUL2020'd (SAS date literal)
+  - The datasets originally have no 'rundate' variable
+
+============================================================
+EXPECTED OUTPUT
+============================================================
+
+[Test 1] PRINT of DM dataset:
+  - 3 observations (rows)
+  - Original columns: usubjid, siteid, armcd
+  - NEW column: rundate
+  - ALL 3 rows: rundate = 07JUL2020 (formatted as date9.)
+
+[Test 2] PRINT of AE dataset:
+  - 4 observations (rows)
+  - Original columns: usubjid, aeterm, aesev
+  - NEW column: rundate
+  - ALL 4 rows: rundate = 07JUL2020 (formatted as date9.)
+
+[Test 3] PROC FREQ of DM.rundate:
+  - Exactly 1 distinct date value
+  - 07JUL2020: count = 3 (100%)
+
+[Test 4] PROC FREQ of AE.rundate:
+  - Exactly 1 distinct date value
+  - 07JUL2020: count = 4 (100%)
+
+============================================================
+VERIFICATION CRITERIA
+============================================================
+
+PASS: Each dataset in the library has a new variable 'rundate'.
+PASS: ALL rows in ALL datasets have the exact same rundate value (the
+      value passed to the date= parameter).
+PASS: No observations were added or dropped.
+PASS: Original data values are unchanged (only the new column is added).
+PASS: The format on rundate allows display as a readable calendar date.
+
+============================================================
+NOTES
+============================================================
+
+- The macro assigns a temporary libref (_tmp1) and clears it after.
+- The special dataset FORMATS (if present) is excluded from processing.
+- If 'rundate' already exists in a dataset, it is overwritten without
+  warning.

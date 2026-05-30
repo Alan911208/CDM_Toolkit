@@ -1,0 +1,87 @@
+============================================================
+TEST RESULTS: batchRunDateDiff
+============================================================
+
+Test Environment:
+  Two libraries (old and new), each containing 2 datasets: DM and AE.
+
+  OLD LIBRARY:
+    DM (3 rows, rundate=01JAN2020):
+      Row 1: 001-0001, S001, TRT
+      Row 2: 001-0002, S001, PBO
+      Row 3: 001-0003, S002, TRT
+
+    AE (3 rows, rundate=01JAN2020):
+      Row 1: 001-0001, Headache,  MILD
+      Row 2: 001-0001, Nausea,    MODERATE
+      Row 3: 001-0002, Fatigue,   MILD
+
+  NEW LIBRARY:
+    DM (4 rows — 001-0002 ARMCD changed PBO→TRT, 001-0004 new):
+      Row 1: 001-0001, S001, TRT
+      Row 2: 001-0002, S001, TRT   (CHANGED)
+      Row 3: 001-0003, S002, TRT
+      Row 4: 001-0004, S003, PBO   (NEW)
+
+    AE (4 rows — Nausea severity changed, Dizziness new):
+      Row 1: 001-0001, Headache,  MILD
+      Row 2: 001-0001, Nausea,    SEVERE   (CHANGED)
+      Row 3: 001-0002, Fatigue,   MILD
+      Row 4: 001-0002, Dizziness, MILD     (NEW)
+
+  Key variables: usubjid aeterm
+  Excluded variables: rundate
+
+============================================================
+EXPECTED OUTPUT
+============================================================
+
+[Test 1] DM output dataset (_out.dm):
+  - 4 rows total
+
+  Row-by-row rundate values:
+    usubjid=001-0001, armcd=TRT   -> rundate = 01JAN2020 (unchanged)
+    usubjid=001-0002, armcd=TRT   -> rundate = TODAY      (changed)
+    usubjid=001-0003, armcd=TRT   -> rundate = 01JAN2020 (unchanged)
+    usubjid=001-0004, armcd=PBO   -> rundate = TODAY      (new)
+
+[Test 2] AE output dataset (_out.ae):
+  - 4 rows total
+
+  Row-by-row rundate values:
+    usubjid=001-0001, aeterm=Headache,  aesev=MILD   -> rundate = 01JAN2020 (unchanged)
+    usubjid=001-0001, aeterm=Nausea,    aesev=SEVERE -> rundate = TODAY      (changed)
+    usubjid=001-0002, aeterm=Fatigue,   aesev=MILD   -> rundate = 01JAN2020 (unchanged)
+    usubjid=001-0002, aeterm=Dizziness, aesev=MILD   -> rundate = TODAY      (new)
+
+[Test 3] PROC FREQ of DM.rundate:
+  - 01JAN2020: count = 2 (unchanged rows)
+  - Today's date: count = 2 (changed + new)
+
+[Test 4] PROC FREQ of AE.rundate:
+  - 01JAN2020: count = 2 (unchanged rows)
+  - Today's date: count = 2 (changed + new)
+
+============================================================
+VERIFICATION CRITERIA
+============================================================
+
+PASS: The output library contains EXACTLY the same set of dataset names
+      as the old library (DM and AE) — no extra, no missing.
+PASS: Each output dataset contains the same number of rows as the
+      corresponding new dataset.
+PASS: For each dataset, unchanged rows retain the original baseline
+      rundate (01JAN2020).
+PASS: For each dataset, changed rows and new rows get today's date.
+PASS: The batch macro processes ALL datasets found in the old library
+      without requiring the user to specify names individually.
+
+============================================================
+NOTES
+============================================================
+
+- The macro iterates over datasets found in the OLD library. If a dataset
+  exists in NEW but not in OLD, it is not processed.
+- Temporary librefs (_new, _old, _out) are assigned and cleared.
+- The %runDateDiff macro is included in the same .sas file for
+  standalone portability.

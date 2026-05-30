@@ -1,0 +1,56 @@
+Expected Test Results for %textSplit
+=====================================
+
+Test Environment:
+  - Dataset work.longtext: 3 rows
+    Row 1: ID=1, TEXT = 500 chars (repeat("ABCDEFGHIJ",49))
+    Row 2: ID=2, TEXT = 450 chars (repeat("0123456789",44))
+    Row 3: ID=3, TEXT = "" (empty)
+
+Macro Execution Log:
+  NOTE: textSplit — splitting TEXT into 3 segments
+
+Output Dataset work.longtext (modified in place):
+  Variables: ID, TEXT1, TEXT2, TEXT3  (TEXT dropped)
+  All new variables: character, length $200
+
+  Row 1 (ID=1, original 500 chars):
+    TEXT1 = 200 chars:  "ABCDEFGHIJ" x 20
+    TEXT2 = 200 chars:  "ABCDEFGHIJ" x 20
+    TEXT3 = 100 chars:  "ABCDEFGHIJ" x 10
+    cats(of TEXT1-TEXT3) = 500 chars (matches original)
+
+  Row 2 (ID=2, original 450 chars):
+    TEXT1 = 200 chars:  "0123456789" x 20
+    TEXT2 = 200 chars:  "0123456789" x 20
+    TEXT3 = 50 chars:   "0123456789" x 5
+    cats(of TEXT1-TEXT3) = 450 chars (matches original)
+
+  Row 3 (ID=3, originally empty):
+    TEXT1 = "" (empty)
+    TEXT2 = "" (empty)
+    TEXT3 = "" (empty)
+    lengthn for all three = 0
+
+Segment Count Logic Verification:
+  - Row 1: ceilz(500/200) = 3 segments
+  - Row 2: ceilz(450/200) = 3 segments
+  - Row 3: ceilz(0/200)   = 0 segments
+  - max(_n) across all rows = 3, so 3 columns created for all rows
+
+DATA Step Verification:
+  - Row 1 TEXT1 first 30 chars = "ABCDEFGHIJABCDEFGHIJABCDEFGHIJ"
+  - Row 2 TEXT1 first 30 chars = "012345678901234567890123456789"
+  - Row 3 TEXT1 = "" (blank)
+
+SQL Summary:
+  ID  len1  len2  len3
+  1   200   200   100
+  2   200   200   50
+  3   0     0     0
+
+Edge Cases:
+  - All-empty variable: WARNING: textSplit — &var is empty in all rows
+    Macro exits without modifying the dataset
+  - Variable <= 200 chars: only 1 segment created, original variable dropped
+  - Missing parameters: ERROR: textSplit — dsn and var are required

@@ -1,0 +1,49 @@
+=== csv2sas — Expected Test Results ===
+
+Test file: mock CSV with 3 variables, 3 rows
+  Headers:  Subject ID | AE Term$ | 1st Dose Date
+  Row 1:    101 | Headache moderate | 2023-01-15
+  Row 2:    102 | Nausea$ | 2023-02-20
+  Row 3:    103 | Dizziness (mild) and fatigue | 2023-03-10
+
+=== Dataset csv_xls2sas (naming=XLS2SAS) ===
+
+Variable names:
+  _c1_  _c2_  _c3_
+
+Variable labels:
+  _c1_ = "Subject ID"
+  _c2_ = "AE Term$"
+  _c3_ = "1st Dose Date"
+
+Data (3 obs):
+  _c1_ | _c2_                            | _c3_
+  101  | Headache moderate               | 2023-01-15
+  102  | Nausea$                         | 2023-02-20
+  103  | Dizziness (mild) and fatigue    | 2023-03-10
+
+=== Dataset csv_label (naming=LABEL) ===
+
+Variable names (cleaned):
+  Subject_ID  AE_Term_   _1st_Dose_Date
+  (Note: "Subject ID" -> Subject_ID; "AE Term$" -> AE_Term_ (the $ is
+   not valid in a SAS name, and the name falls back because _err=1);
+   "1st Dose Date" -> leading digit triggers replacement, becomes
+   _1st_Dose_Date; actual output depends on the strictness of the
+   character checklist — some chars may be replaced with underscores.)
+
+Variable labels (original headers):
+  Subject_ID      = "Subject ID"
+  AE_Term_        = "AE Term$"
+  _1st_Dose_Date  = "1st Dose Date"
+
+Data (3 obs): same values as above but under cleaned variable names.
+
+=== Verification points ===
+
+1. Three observations imported in both datasets
+2. XLS2SAS mode: variables are _c1_, _c2_, _c3_ with labels preserved
+3. LABEL mode: variables have SAS-legal names derived from headers
+4. Column widths are optimal (not padded to default $8)
+5. No errors or warnings in the SAS log
+6. Work dataset __RST is cleaned up (deleted after use)

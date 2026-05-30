@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "cdm-tools"
+version = "3.0.0"
+description = "CDM Toolkit — clinical data management Excel workflows with Python + VBA + Web"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "pandas>=2.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+sas = ["pyreadstat>=1.2"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+cdm-tools = "cdm_tools.cli:main"
+
+[tool.setuptools]
+packages = ["cdm_engine", "cdm_tools"]
+
+[tool.setuptools.package-data]
+cdm_engine = ["*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

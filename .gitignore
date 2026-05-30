@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+
+# Superpowers (internal)
+.superpowers/
+
+# Test outputs
+test_output/
+
+# OS
+.DS_Store
+Thumbs.db

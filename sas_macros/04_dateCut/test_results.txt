@@ -1,0 +1,62 @@
+Expected Test Results for %dateCut
+====================================
+
+Test Environment:
+  - Source library (&srcpath): 2 datasets
+    - AE: 6 rows (USUBJID, Visit, AESTDTC_YMD, AETERM)
+    - DM: 3 rows (USUBJID, SEX, AGE, ARM, RFICDTC_YMD)
+  - Cutoff date: 20240120 (numeric SAS date = 23396)
+
+Source Data — AE:
+  USUBJID  Visit  AESTDTC_YMD  AETERM
+  001      1      23391        Headache   (2024-01-15, before cutoff)
+  001      2      23400        Nausea     (2024-01-24, AFTER cutoff)
+  001      3      23415        Fatigue    (2024-02-03, AFTER cutoff)
+  002      1      23385        Dizziness  (2024-01-14, before cutoff)
+  002      2      23410        Vertigo    (2024-01-29, AFTER cutoff)
+  003      1      23420        Pain       (2024-02-08, AFTER cutoff)
+
+Source Data — DM:
+  USUBJID  SEX  AGE  ARM  RFICDTC_YMD
+  001      M    45   TRT  23380       (2024-01-04, before cutoff)
+  002      F    52   CTL  23382       (2024-01-06, before cutoff)
+  003      F    38   TRT  23405       (2024-01-29, AFTER cutoff)
+
+Processing — visitVar (AE.AESTDTC_YMD):
+  - Stack visit dates from AE into _vst_ table
+  - Filter _vst_: keep only visits < 2024-01-20 (numeric 23396)
+    Retained: 001/Visit1 (23391), 002/Visit1 (23385)
+    Excluded: 001/Visit2 (23400), 001/Visit3 (23415),
+              002/Visit2 (23410), 003/Visit1 (23420)
+  - Merge AE with filtered _vst_ by USUBJID Visit
+    -> Only USUBJID=001 Visit=1 and USUBJID=002 Visit=1 match
+
+Processing — otherVar (DM.RFICDTC_YMD):
+  - Filter: keep rows where RFICDTC_YMD < 23396
+    Retained: 001 (23380), 002 (23382)
+    Excluded: 003 (23405)
+
+Filtered Output — AE in &tgtpath:
+  USUBJID  Visit  AESTDTC_YMD  AETERM
+  001      1      23391        Headache
+  002      1      23385        Dizziness
+  (2 rows kept from 6 original)
+
+Filtered Output — DM in &tgtpath:
+  USUBJID  SEX  AGE  ARM  RFICDTC_YMD
+  001      M    45   TRT  23380
+  002      F    52   CTL  23382
+  (2 rows kept from 3 original)
+
+Comparison Report (&tgtpath._rpt_):
+  memname  nlobs0  nlobs1  pct
+  AE       6       2       33.3%
+  DM       3       2       66.7%
+
+Log Messages:
+  NOTE: dateCut — summary written to &tgtpath\_rpt_
+
+Summary:
+  - AE: 6 -> 2 rows (33.3% retention, only pre-cutoff visits kept)
+  - DM: 3 -> 2 rows (66.7% retention, only subjects enrolled before cutoff)
+  - _rpt_ correctly shows original vs. new counts with percentages

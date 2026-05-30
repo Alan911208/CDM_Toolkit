@@ -1,0 +1,28 @@
+Expected Test Results for %dsRecCount
+========================================
+
+Test Environment:
+  - Temporary directory created under WORK path
+  - Two datasets: AE (5 rows, 3 vars) and LB (3 rows, 4 vars)
+
+Macro Execution:
+  Log: NOTE: dsRecCount — output in work.jilu
+
+Output Dataset work.jilu:
+  Variable: e (character, length 200, label="Test Data Counts")
+
+  Obs  e
+  ───  ─────────────────────────────────────────────
+   1   AE  Records:5, Variables:3
+   2   LB  Records:3, Variables:4
+
+Validation:
+  - AE correctly shows 5 records and 3 variables (USUBJID, AETERM, AESEV)
+  - LB correctly shows 3 records and 4 variables (USUBJID, LBTEST, LBORRES, LBORRESU)
+  - Output dataset has exactly 2 observations (one per dataset)
+  - No WARNING or ERROR messages in log
+
+Edge case (empty directory):
+  If run on an empty directory, work.jilu would have 0 observations.
+  The NOTE message still appears: "NOTE: dsRecCount — output in work.jilu"
+  (empty output with the column still defined).

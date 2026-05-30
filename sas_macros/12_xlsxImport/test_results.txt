@@ -1,0 +1,38 @@
+=== xlsxImport — Expected Test Results ===
+
+Test workbook: C:\temp\test_2sheets.xlsx
+  Sheet "Demog": headers SUBJID, AGE, SEX, RACE (3+ data rows)
+  Sheet "AE":    headers SUBJID, AETERM, AESTDT, AESEV (3+ data rows)
+
+=== SAS Log Messages (expected) ===
+
+NOTE: xlsxImport - Reading sheet list from C:\temp\test_2sheets.xlsx
+NOTE: xlsxImport - Found 2 sheet(s)
+NOTE: xlsxImport - Importing sheet: Demog$
+NOTE: xlsxImport - Importing sheet: AE$
+NOTE: xlsxImport - Successfully imported 2 sheet(s) to library _XLIB
+
+=== Output Library (_XLIB) ===
+
+Should contain 2 datasets:
+  1. _XLIB.Demog  — data from sheet "Demog"
+  2. _XLIB.AE     — data from sheet "AE"
+
+=== Dataset _XLIB.Demog ===
+  Variables (from sheet headers): SUBJID, AGE, SEX, RACE
+  Observations: same count as data rows in the sheet
+  Variable types: automatic inference by PROC IMPORT (character/numeric)
+
+=== Dataset _XLIB.AE ===
+  Variables (from sheet headers): SUBJID, AETERM, AESTDT, AESEV
+  Observations: same count as data rows in the sheet
+
+=== Verification points ===
+
+1. SAS log shows discovered sheet count and import progress
+2. Both datasets exist in the target library
+3. Variable names match the Excel header row
+4. Row counts match the original sheet data
+5. No errors in the SAS log
+6. Work dataset _excel is cleaned up (deleted)
+7. LIBNAME _XLIB and temporary _XLSIM librefs are cleared

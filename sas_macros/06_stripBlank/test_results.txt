@@ -1,0 +1,29 @@
+Expected test results for stripBlank
+=====================================
+
+SAS Log Output:
+---------------
+- NOTE from PROC SQL: creation of _tmp_ (column metadata from dictionary.columns)
+- NOTE from PROC SQL: _estIdx count, _estCD count, _estText count queries
+- NOTE from PROC SQL: _misIdx = 0 (all SEQNUM values missing), _misCD = 0 (all SEQCD missing), _misText = 0 (all SEQTEXT missing)
+- NOTE from DATA step (clean_cdm): 4 observations read from raw_cdm WHERE clause (non-missing line only)
+- SEQNUM, SEQCD, SEQTEXT, and pStatus variables dropped
+- WARNING-free execution
+- proc datasets / delete _tmp_ and pat tables (if they exist)
+
+Dataset Contents (clean_cdm):
+-----------------------------
+Row count: 4 observations
+Variables retained: line, Status, USUBJID, VISIT, VISITNUM, LBTESTCD, LBSTRESC
+Variables dropped: SEQNUM, SEQCD, SEQTEXT, pStatus
+
+Row data:
+  Row 1: line=1, Status=1, USUBJID='SUBJ-001', VISIT='Week 0',  VISITNUM=0, LBTESTCD='ALT',  LBSTRESC='25'
+  Row 2: line=2, Status=1, USUBJID='SUBJ-001', VISIT='Week 0',  VISITNUM=0, LBTESTCD='AST',  LBSTRESC='30'
+  Row 3: line=3, Status=1, USUBJID='SUBJ-001', VISIT='Week 2',  VISITNUM=2, LBTESTCD='ALT',  LBSTRESC='22'
+  Row 4: line=5, Status=1, USUBJID='SUBJ-002', VISIT='Week 0',  VISITNUM=0, LBTESTCD='ALT',  LBSTRESC='18'
+
+Removed rows:
+  - Row 3 (line=., blank placeholder) — filtered by WHERE clause
+  - Row 5 (line=4, Status=0, pStatus='Added') — deleted by conditional logic
+  - Row 7 (line=., blank placeholder) — filtered by WHERE clause

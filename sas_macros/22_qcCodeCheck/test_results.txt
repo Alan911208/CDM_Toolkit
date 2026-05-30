@@ -1,0 +1,56 @@
+================================================================================
+  EXPECTED TEST RESULTS: %qcCodeCheck
+================================================================================
+
+SAS LOG output (expected messages):
+   NOTE: qcCodeCheck — project=TEST001, output=<work-path>\Coding_QC.xls
+   (WARNING about missing aeFile/cmFile — normal, using pre-loaded data)
+   NOTE: qcCodeCheck — output written to <work-path>\Coding_QC.xls
+
+CHECK RESULTS (each dataset should have exactly the rows described):
+
+1. AE-1 (_a2 = AE1_SameTerm_DiffLLTCode):  1 row
+   _c7_ = "Headache", _c9_ = "LLT-002"
+   _fin = "Same AE term, different LLT code — verify"
+   Reason: "Headache" appears with both LLT-001 and LLT-002
+
+2. AE-2 (_b2 = AE2_SameTerm_DiffPTCode):   1 row
+   _c7_ = "Nausea", _c11_ = "PT-102"
+   _fin = "Same AE term, different PT code — verify"
+   Reason: "Nausea" appears with PT-101 and PT-102
+
+3. AE-3 (_c2 = AE3_SameLLT_DiffLLTCode):   1 row
+   _c8_ = "Pain", _c9_ = "LLT-004"
+   _fin = "Same LLT, different LLT code — verify"
+   Reason: LLT "Pain" appears with LLT-003 and LLT-004
+
+4. AE-4 (_d2 = AE4_LLT_eq_PT_DiffCode):    1 row
+   _c8_ = "Dizziness", _c10_ = "Dizziness"
+   _fin = "LLT equals PT but codes differ — verify"
+   Reason: LLT="Dizziness"=PT but LLT-005 != PT-105
+
+5. CM-1 (_e2 = CM1_SameDrug_DiffDrugCode): 1 row
+   _c8_ = "Aspirin", _c17_ = "DRG-002"
+   _fin = "Same drug name, different drug code — verify"
+   Reason: "Aspirin" appears with DRG-001 and DRG-002
+
+6. CM-2 (_f2 = CM2_SameDrug_DiffPrefName): 1 row
+   _c8_ = "Ibuprofen", _c18_ = "Ibuprofen-Spec"
+   _fin = "Same drug name, different preferred name — verify"
+   Reason: "Ibuprofen" has ATC names "Ibuprofen-Gen" and "Ibuprofen-Spec"
+
+7. CM-3 (_g2 = CM3_SameCodeInd_DiffATC):   1 row
+   _c17_ = "DRG-003", _c9_ = "Hypertension", _c26_ = "C07AC01"
+   _fin = "Same drug code + indication, different ATC — verify"
+   Reason: DRG-003 + Hypertension has ATC4 C07AB02 and C07AC01
+
+FILTERING:
+   - Records with _c1_ = "OTHER01" (Fever, Warfarin) are correctly excluded
+   - Only TEST001 project records are checked
+
+OUTPUT WORKBOOK (Coding_QC.xls):
+   - 7 sheets present, each containing flagged records
+   - Each sheet has column labels (dblabel=YES)
+   - Empty check results produce empty sheets
+
+No ERROR messages expected in log.

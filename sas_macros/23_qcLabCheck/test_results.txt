@@ -1,0 +1,40 @@
+================================================================================
+  EXPECTED TEST RESULTS: %qcLabCheck
+================================================================================
+
+SAS LOG output (expected messages):
+   NOTE: qcLabCheck — checking lb_test in <work-path>
+   NOTE: qcLabCheck — output will be written to <work-path>\Lab_QC.xls
+   NOTE: qcLabCheck — output written to <work-path>\Lab_QC.xls
+
+CHECK RESULTS (datasets in WORK):
+
+1. _fin1 (01_Missing_Unit_Range): 2 rows
+   - USUBJID=001, LBTEST=Glucose:     _check="Missing unit"
+   - USUBJID=002, LBTEST=ALT:          _check="Missing lower limit; Missing upper limit"
+
+2. _fin2 (02_Range_Outlier): 2 rows
+   - USUBJID=002, LBTEST=ALT:          _check="Result >10x upper limit"
+     (LBORRES=500 vs LBORNRHI=40, 500 > 400)
+   - USUBJID=003, LBTEST=WBC:          _check="Result *10 below lower limit; not flagged abnormal"
+     (LBORRES=0.05, *10=0.5 < LBORNRLO=4.0, LBSIG does not contain "Abnormal")
+
+3. _fin3 (03_Inconsistent_Unit): 3 rows (approximately)
+   - Hemoglobin: unit switches between "g/dL" and "mg/dL" across rows
+   - Rows where LBORRESU differs from the previous row's LBORRESU for same LBTEST
+
+4. _fin4 (04_NonNumeric_Result): 2 rows
+   - USUBJID=004, LBTEST=AST:  LBORRES="<5"   (compress removes "." and digits, leaves "<")
+   - USUBJID=004, LBTEST=ALT:  LBORRES=">500"  (compress removes "." and digits, leaves ">")
+
+NORMAL RECORDS (NOT flagged):
+   - USUBJID=001 Glucose Week 0   (complete data)
+   - USUBJID=002 ALT Week 4       (normal range, 28 within 10-40)
+   - USUBJID=001 Hemoglobin Week 0 (normal, g/dL)
+
+OUTPUT WORKBOOK (Lab_QC.xls):
+   - 4 sheets: 01_Missing_Unit_Range, 02_Range_Outlier,
+               03_Inconsistent_Unit, 04_NonNumeric_Result
+   - Each sheet contains only flagged records with column labels
+
+No ERROR messages expected in log.
