@@ -59,17 +59,6 @@ if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 
-@app.get("/{full_path:path}", response_class=HTMLResponse)
-async def spa_fallback(full_path: str = ""):
-    """Serve index.html for all routes (SPA client-side routing).
-    Excludes /api/* and /static/* which are handled by their own routes.
-    """
-    index_path = WEB_DIR / "index.html"
-    if index_path.exists():
-        return HTMLResponse(index_path.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>CDM Toolkit</h1><p>Web files not found.</p>")
-
-
 @app.post("/api/merge")
 async def api_merge(
     files: list[UploadFile] = File(...),
@@ -348,6 +337,18 @@ OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
         if job:
             job["status"] = "error"
             job["log"] = f"执行异常: {str(e)}"
+
+
+# ── SPA Fallback (must be LAST route) ───────────────────────────────────────
+
+
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def spa_fallback(full_path: str = ""):
+    """Serve index.html for all unmatched routes (SPA client-side routing)."""
+    index_path = WEB_DIR / "index.html"
+    if index_path.exists():
+        return HTMLResponse(index_path.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>CDM Toolkit</h1><p>Web files not found.</p>")
 
 
 def start_server(port: int = 8520, open_browser: bool = True):
