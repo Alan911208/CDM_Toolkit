@@ -25,7 +25,6 @@ const ROUTES = {
   '/pdfmerge': { title: 'PDF 合并', page: 'pdfmerge.js' },
   '/pdfsplit': { title: 'PDF 分割', page: 'pdfsplit.js' },
   '/docx2pdf': { title: 'Word 转 PDF', page: 'docx2pdf.js' },
-  '/files':    { title: '文件目录', page: 'files.js' },
   '/explorer': { title: 'Data Explorer', page: 'explorer.js' },
 };
 
