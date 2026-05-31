@@ -1418,6 +1418,56 @@ def generate_chart_from_sas(
     return output_path
 
 
+# ============================================================
+# 22b. SAS Conversion Tools (Python equivalents of SAS macros)
+# ============================================================
+def sas_to_csv(sas_path: str, output_path: str) -> str:
+    """Convert a SAS dataset to CSV."""
+    df = sas_to_dataframe(sas_path)
+    df.to_csv(output_path, index=False)
+    return output_path
+
+
+def csv_to_sas(csv_path: str, output_path: str) -> str:
+    """Convert a CSV file to SAS dataset (.sas7bdat). Requires pyreadstat."""
+    import pandas as pd
+    df = pd.read_csv(csv_path)
+    import pyreadstat
+    pyreadstat.write_sas7bdat(df, output_path)
+    return output_path
+
+
+def sas_to_excel_file(sas_path: str, output_path: str) -> str:
+    """Convert a SAS dataset to Excel (.xlsx)."""
+    import pandas as pd
+    df = sas_to_dataframe(sas_path)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "DATA"
+    for ci, col in enumerate(df.columns, 1):
+        cell = ws.cell(row=1, column=ci, value=str(col))
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+    for ri, (_, row) in enumerate(df.iterrows()):
+        for ci, col in enumerate(df.columns, 1):
+            val = row[col]
+            if isinstance(val, float) and pd.isna(val):
+                val = None
+            ws.cell(row=ri + 2, column=ci, value=val)
+    auto_width(ws)
+    wb.save(output_path)
+    return output_path
+
+
+def excel_to_sas_file(xlsx_path: str, output_path: str) -> str:
+    """Convert an Excel file to SAS dataset (.sas7bdat). Requires pyreadstat."""
+    import pandas as pd
+    df = pd.read_excel(xlsx_path)
+    import pyreadstat
+    pyreadstat.write_sas7bdat(df, output_path)
+    return output_path
+
+
 def sas_preview(sas_path: str, rows: int = 100) -> dict:
     """Preview a SAS dataset — return headers + first N rows as JSON."""
     df = sas_to_dataframe(sas_path)
@@ -1442,20 +1492,17 @@ def sas_preview(sas_path: str, rows: int = 100) -> dict:
 # ============================================================
 # 23. Raw Data QC Analysis
 # ============================================================
-def analyze_sas_dataset(sas_path: str) -> dict:
+def scan_sas_metadata(sas_path: str) -> dict:
     """
-    Comprehensive QC analysis of a SAS dataset.
-    Returns dataset-level info, variable metadata, and QC findings.
+    Scan a SAS dataset and return metadata only (no QC findings).
+    Pure data exploration — dataset info, variable listing, sample values.
     """
     import pandas as pd
-    import re
-    from datetime import datetime
 
     df = sas_to_dataframe(sas_path)
     n_rows = len(df)
     n_cols = len(df.columns)
 
-    # ── Dataset Info ──
     dataset_info = {
         "file_name": os.path.basename(sas_path),
         "row_count": n_rows,
@@ -1463,18 +1510,14 @@ def analyze_sas_dataset(sas_path: str) -> dict:
         "memory_mb": round(df.memory_usage(deep=True).sum() / (1024 * 1024), 2),
     }
 
-    # ── Variable Metadata ──
     variables = []
     for col in df.columns:
         dtype = str(df[col].dtype)
         missing = int(df[col].isna().sum())
         missing_pct = round(100 * missing / n_rows, 1) if n_rows > 0 else 0
         unique = int(df[col].nunique())
-
-        # Sample values (first 3 non-null)
         sample_vals = df[col].dropna().head(3).tolist()
         sample_vals = [str(v)[:50] for v in sample_vals]
-
         var_type = "Char" if dtype == "object" else "Num"
 
         variables.append({
@@ -1487,97 +1530,16 @@ def analyze_sas_dataset(sas_path: str) -> dict:
             "sample": sample_vals[:3],
         })
 
-    # ── QC Findings ──
-    findings = []
-
-    # 1. Missing data check (>20%)
-    for v in variables:
-        if v["missing_pct"] > 20:
-            findings.append({
-                "level": "warning",
-                "category": "缺失数据",
-                "message": f"{v['name']} 缺失率 {v['missing_pct']}%",
-                "detail": f"{v['missing']}/{n_rows} 行",
-            })
-
-    # 2. Special characters in text columns
-    char_cols = df.select_dtypes(include=["object"]).columns
-    for col in char_cols:
-        bad_count = 0
-        bad_examples = []
-        for val in df[col].dropna().head(500):
-            s = str(val)
-            if re.search(r'[^\x20-\x7E一-鿿　-〿＀-￯]', s):
-                bad_count += 1
-                if len(bad_examples) < 3:
-                    bad_examples.append(s[:80])
-        if bad_count > 0:
-            findings.append({
-                "level": "warning",
-                "category": "特殊字符",
-                "message": f"{col} 含 {bad_count}+ 个特殊字符",
-                "detail": "; ".join(bad_examples[:3]) if bad_examples else "",
-            })
-
-    # 3. Date validity check
-    date_cols = [c for c in df.columns if re.search(r'(DT|DATE|DTC|DAT|TIM)', c, re.IGNORECASE)]
-    for col in date_cols:
-        if df[col].dtype == "object":
-            bad_dates = 0
-            for val in df[col].dropna().head(500):
-                s = str(val).strip()
-                if s and not re.match(r'^\d{4}-\d{2}-\d{2}', s) and not re.match(r'^\d{8}$', s):
-                    bad_dates += 1
-            if bad_dates > 0:
-                findings.append({
-                    "level": "warning",
-                    "category": "日期格式",
-                    "message": f"{col} 含 {bad_dates}+ 个非标准格式日期",
-                    "detail": "建议格式: YYYY-MM-DD 或 YYYYMMDD",
-                })
-
-    # 4. Numeric outlier detection (IQR method)
-    num_cols = df.select_dtypes(include=["number"]).columns
-    for col in num_cols:
-        series = df[col].dropna()
-        if len(series) < 10:
-            continue
-        q1, q3 = series.quantile(0.25), series.quantile(0.75)
-        iqr = q3 - q1
-        lower, upper = q1 - 3 * iqr, q3 + 3 * iqr
-        outliers = int(((series < lower) | (series > upper)).sum())
-        if outliers > 0:
-            findings.append({
-                "level": "info",
-                "category": "异常值",
-                "message": f"{col} 检测到 {outliers} 个离群值 (3×IQR)",
-                "detail": f"范围: [{round(lower,2)}, {round(upper,2)}], 离群: {outliers}",
-            })
-
-    # 5. Duplicate rows check
-    dup_count = int(df.duplicated().sum())
-    if dup_count > 0:
-        findings.append({
-            "level": "warning",
-            "category": "重复数据",
-            "message": f"检测到 {dup_count} 行完全重复",
-            "detail": f"占总数据 {round(100*dup_count/n_rows,2)}%",
-        })
-
-    # ── Summary ──
-    errors = [f for f in findings if f["level"] == "error"]
-    warnings = [f for f in findings if f["level"] == "warning"]
-    infos = [f for f in findings if f["level"] == "info"]
+    char_count = sum(1 for v in variables if v["type"] == "Char")
+    num_count = n_cols - char_count
 
     return {
         "dataset": dataset_info,
         "variables": variables,
-        "findings": findings,
         "summary": {
-            "total_findings": len(findings),
-            "errors": len(errors),
-            "warnings": len(warnings),
-            "info": len(infos),
-            "pass_rate": round(100 * (n_cols - len(set(f["message"].split()[0] for f in warnings))) / max(n_cols, 1), 1),
+            "total_vars": n_cols,
+            "char_vars": char_count,
+            "num_vars": num_count,
+            "complete_vars": sum(1 for v in variables if v["missing"] == 0),
         },
     }

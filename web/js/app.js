@@ -23,7 +23,8 @@ const ROUTES = {
   '/changes':   { title: '修改痕迹', page: 'changes.js' },
   '/creatinine':{ title: '医学计算器', page: 'creatinine.js' },
   '/saschart': { title: 'SAS 图表', page: 'saschart.js' },
-  '/qc':      { title: 'QC Portal', page: 'qc.js' },
+  '/explorer': { title: 'Data Explorer', page: 'explorer.js' },
+  '/convert':  { title: 'SAS 转换', page: 'convert.js' },
 };
 
 let dashboardHTML = null;

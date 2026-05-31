@@ -63,12 +63,15 @@ from cdm_engine.engine import (
     add_days_to_column_file,
     convert_lab_units_file,
     list_directory,
-    # SAS charting
+    # SAS tools
     sas_to_dataframe,
     generate_chart_from_sas,
     sas_preview,
-    # QC analysis
-    analyze_sas_dataset,
+    scan_sas_metadata,
+    sas_to_csv,
+    csv_to_sas,
+    sas_to_excel_file,
+    excel_to_sas_file,
     # Utilities
     apply_header_style,
     auto_width,
