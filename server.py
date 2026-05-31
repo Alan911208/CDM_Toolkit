@@ -130,8 +130,42 @@ async def api_file_listing(
     path: str = Form(...),
     include_subfolders: bool = Form(True),
     file_pattern: str = Form("*.*"),
+    format: str = Form("json"),
 ):
-    """Browse directory contents."""
+    """Browse directory contents. format=json or format=txt."""
+    if format == "txt":
+        from datetime import datetime
+        lines = []
+        lines.append(f"文件目录列表 - 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append("=" * 50)
+        lines.append("")
+
+        def _tree(current_path, indent=""):
+            dir_name = os.path.basename(current_path) or current_path
+            lines.append(f"{indent}📁 {dir_name}")
+            try:
+                items = sorted(os.listdir(current_path))
+            except PermissionError:
+                lines.append(f"{indent}    ⛔ 权限不足")
+                return
+            for item in items:
+                full = os.path.join(current_path, item)
+                if os.path.isdir(full):
+                    if include_subfolders:
+                        _tree(full, indent + "    ")
+                else:
+                    if file_pattern in ("*.*", "*") or item.lower().endswith(file_pattern.replace("*.", ".").lower()):
+                        size = os.path.getsize(full)
+                        size_str = f"{size / 1024:.1f} KB" if size < 1024 * 1024 else f"{size / 1024 / 1024:.1f} MB"
+                        lines.append(f"{indent}    📄 {item}  ({size_str})")
+
+        _tree(path)
+        lines.append("")
+        lines.append("=" * 50)
+        lines.append("文件列表生成完成")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("\n".join(lines), media_type="text/plain; charset=utf-8")
+
     return list_directory(path, include_subfolders, file_pattern)
 
 
