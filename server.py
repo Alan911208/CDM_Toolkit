@@ -1148,9 +1148,10 @@ async def api_compare_datasets(
     old_files: list[UploadFile] = File(...),
     new_files: list[UploadFile] = File(...),
     key_vars: str = Form(""),
+    format: str = Form("json"),
 ):
-    """Compare two batches of SAS datasets and generate a comparison report."""
-    from cdm_engine import compare_datasets
+    """Compare two batches of SAS datasets. Returns JSON summary or Excel report."""
+    from cdm_engine import compare_datasets_summary, compare_datasets
 
     old_dir = tempfile.mkdtemp()
     new_dir = tempfile.mkdtemp()
@@ -1160,6 +1161,13 @@ async def api_compare_datasets(
     for f in new_files:
         with open(os.path.join(new_dir, f.filename or "new.sas7bdat"), "wb") as out:
             out.write(f.file.read())
+
+    if format == "json":
+        try:
+            result = compare_datasets_summary(old_dir, new_dir, key_vars=key_vars)
+            return result
+        except ValueError as e:
+            return {"error": str(e)}
 
     out_path = os.path.join(tempfile.mkdtemp(), "comparison_report.xlsx")
     try:

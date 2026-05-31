@@ -1498,6 +1498,89 @@ def scan_sas_metadata(sas_path: str) -> dict:
 # ============================================================
 # 24. Dataset Comparison Engine
 # ============================================================
+def compare_datasets_summary(
+    old_dir: str,
+    new_dir: str,
+    key_vars: str = "",
+) -> dict:
+    """
+    Compare two batches of SAS datasets and return a JSON-friendly summary.
+    Lightweight version — no Excel generation.
+    """
+    import pandas as pd
+    import os as _os
+
+    old_files = {}
+    new_files = {}
+    for f in _os.listdir(old_dir):
+        if f.lower().endswith(".sas7bdat"):
+            old_files[_os.path.splitext(f)[0].lower()] = _os.path.join(old_dir, f)
+    for f in _os.listdir(new_dir):
+        if f.lower().endswith(".sas7bdat"):
+            new_files[_os.path.splitext(f)[0].lower()] = _os.path.join(new_dir, f)
+
+    all_names = sorted(set(old_files.keys()) | set(new_files.keys()))
+    key_list = [k.strip() for k in key_vars.split(",") if k.strip()] if key_vars else []
+
+    results = []
+    summary = {"total": len(all_names), "matched": 0, "only_old": 0, "only_new": 0,
+               "identical": 0, "changed": 0}
+
+    for name in all_names:
+        in_old = name in old_files
+        in_new = name in new_files
+
+        entry = {"dataset": name, "status": "", "old_rows": 0, "new_rows": 0,
+                 "added_vars": [], "removed_vars": [], "modified_vars": [],
+                 "added_rows": 0, "removed_rows": 0, "modified_rows": 0}
+
+        if not in_old:
+            entry["status"] = "only_new"; summary["only_new"] += 1
+            results.append(entry); continue
+        if not in_new:
+            entry["status"] = "only_old"; summary["only_old"] += 1
+            results.append(entry); continue
+
+        summary["matched"] += 1
+        df_old = sas_to_dataframe(old_files[name])
+        df_new = sas_to_dataframe(new_files[name])
+        old_cols = set(df_old.columns); new_cols = set(df_new.columns)
+        entry["old_rows"] = len(df_old); entry["new_rows"] = len(df_new)
+        entry["added_vars"] = sorted(new_cols - old_cols)
+        entry["removed_vars"] = sorted(old_cols - new_cols)
+
+        # Row-level with keys
+        common_vars = sorted(old_cols & new_cols)
+        if key_list and all(k in df_old.columns and k in df_new.columns for k in key_list):
+            old_keys = df_old[key_list].astype(str).agg("|".join, axis=1)
+            new_keys = df_new[key_list].astype(str).agg("|".join, axis=1)
+            entry["added_rows"] = int((~new_keys.isin(old_keys)).sum())
+            entry["removed_rows"] = int((~old_keys.isin(new_keys)).sum())
+            common = old_keys[old_keys.isin(new_keys)]
+            if len(common) > 0:
+                o = df_old.set_index(key_list).sort_index()
+                n = df_new.set_index(key_list).sort_index()
+                o_c = o.loc[o.index.isin(common)]
+                n_c = n.loc[n.index.isin(common)]
+                mods = []
+                for col in common_vars:
+                    if col in o_c.columns and col in n_c.columns:
+                        d = (o_c[col].fillna("__NA__") != n_c[col].fillna("__NA__")).sum()
+                        if d > 0: mods.append(f"{col}({d})")
+                entry["modified_vars"] = mods[:20]
+                entry["modified_rows"] = int((o_c.fillna("__NA__").values != n_c.fillna("__NA__").values).any(axis=1).sum())
+
+        is_identical = (not entry["added_vars"] and not entry["removed_vars"] and
+                        not entry["added_rows"] and not entry["removed_rows"] and
+                        not entry["modified_rows"] and entry["old_rows"] == entry["new_rows"])
+        entry["status"] = "identical" if is_identical else "changed"
+        if is_identical: summary["identical"] += 1
+        else: summary["changed"] += 1
+        results.append(entry)
+
+    return {"summary": summary, "datasets": results}
+
+
 def compare_datasets(
     old_dir: str,
     new_dir: str,

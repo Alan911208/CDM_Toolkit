@@ -68,6 +68,7 @@ from cdm_engine.engine import (
     generate_chart_from_sas,
     sas_preview,
     scan_sas_metadata,
+    compare_datasets_summary,
     compare_datasets,
     # Utilities
     apply_header_style,
