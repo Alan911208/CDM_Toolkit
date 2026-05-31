@@ -36,130 +36,47 @@
   <main class="app-main" id="app-main">
     <!-- Dashboard -->
     <div class="page-section">
-      <h2>功能模块</h2>
-      <p class="section-subtitle">选择需要的工具开始处理数据</p>
+      <h2>📊 Excel 工具</h2>
+      <div class="cards">
+        <a class="card" href="/merge" data-route="/merge"><div class="card-icon"></div><h3>工作簿合并</h3><p>将多个 Excel 文件合并为一个工作簿，支持预览和策略配置</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/split" data-route="/split"><div class="card-icon"></div><h3>工作表拆分</h3><p>按指定列的值将一个 sheet 拆分为多个，支持大数据量</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/clean" data-route="/clean"><div class="card-icon"></div><h3>数据清理</h3><p>文本标准化、重复高亮、空白行管理、删除线处理</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/sheets" data-route="/sheets"><div class="card-icon"></div><h3>工作表管理</h3><p>批量创建、删除、重命名、列出工作表名称</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/toc" data-route="/toc"><div class="card-icon"></div><h3>TOC 目录生成</h3><p>生成带超链接的目录页，支持标准版和 SAS Derive 版</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/changes" data-route="/changes"><div class="card-icon"></div><h3>修改痕迹跟踪</h3><p>对比原版文件，高亮标记所有单元格修改并添加批注</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/scan" data-route="/scan"><div class="card-icon"></div><h3>特殊字符扫描</h3><p>扫描非标准字符，生成 EDC（Rave/Clinflash）合规报告</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/files" data-route="/files"><div class="card-icon"></div><h3>文件目录浏览</h3><p>树形浏览文件夹内容，一键导出带超链接的 Excel 清单</p><span class="badge badge-web">Web</span></a>
+      </div>
     </div>
-    <div class="cards">
-      <a class="card" href="/merge" data-route="/merge">
-        <div class="card-icon"></div>
-        <h3>工作簿合并</h3>
-        <p>将多个 Excel 文件合并为一个工作簿，支持预览和策略配置</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/split" data-route="/split">
-        <div class="card-icon"></div>
-        <h3>工作表拆分</h3>
-        <p>按指定列的值将一个 sheet 拆分为多个，支持大数据量</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/scan" data-route="/scan">
-        <div class="card-icon"></div>
-        <h3>特殊字符扫描</h3>
-        <p>扫描非标准字符，生成 EDC（Rave/Clinflash）合规报告</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/files" data-route="/files">
-        <div class="card-icon"></div>
-        <h3>文件目录浏览</h3>
-        <p>树形浏览文件夹内容，一键导出带超链接的 Excel 清单</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/dates" data-route="/dates">
-        <div class="card-icon"></div>
-        <h3>日期计算</h3>
-        <p>对日期列批量加减天数、计算日期差</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/units" data-route="/units">
-        <div class="card-icon"></div>
-        <h3>单位转换</h3>
-        <p>实验室检验单位批量统一转换（24组内置因子）</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/clean" data-route="/clean">
-        <div class="card-icon"></div>
-        <h3>数据清理</h3>
-        <p>文本标准化、重复高亮、空白行管理、删除线处理</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/sheets" data-route="/sheets">
-        <div class="card-icon"></div>
-        <h3>工作表管理</h3>
-        <p>批量创建、删除、重命名、列出工作表名称</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/toc" data-route="/toc">
-        <div class="card-icon"></div>
-        <h3>TOC 目录生成</h3>
-        <p>生成带超链接的目录页，支持标准版和 SAS Derive 版</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/changes" data-route="/changes">
-        <div class="card-icon"></div>
-        <h3>修改痕迹跟踪</h3>
-        <p>对比原版文件，高亮标记所有单元格修改并添加批注</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/creatinine" data-route="/creatinine">
-        <div class="card-icon"></div>
-        <h3>医学计算器</h3>
-        <p>批量计算 CrCl (Cockcroft-Gault) 和 eGFR (CKD-EPI 2021)</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/saschart" data-route="/saschart">
-        <div class="card-icon"></div>
-        <h3>SAS 数据集图表</h3>
-        <p>上传 .sas7bdat 文件，选择列和图表类型，生成 Excel 图表</p>
-        <span class="badge badge-web">Web</span>
-      </a>
-      <a class="card" href="/compare" data-route="/compare">
-        <div class="card-icon"></div>
-        <h3>SAS 数据集比较</h3>
-        <p>上传新旧两批 SAS 数据集，比对 Schema/行数/值差异，生成 Excel 报告</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/sas2excel" data-route="/sas2excel">
-        <div class="card-icon"></div>
-        <h3>SAS 转 Excel</h3>
-        <p>批量上传 .sas7bdat 数据集，转换为 Excel，第一行变量名，第二行label</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/pdftable" data-route="/pdftable">
-        <div class="card-icon"></div>
-        <h3>PDF 表格提取</h3>
-        <p>上传 PDF，自动检测表格并导出为 Excel 文件</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/pdfrotate" data-route="/pdfrotate">
-        <div class="card-icon"></div>
-        <h3>PDF 旋转</h3>
-        <p>上传 PDF，旋转所有页面（90°/180°/270°）并下载</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/pdfmerge" data-route="/pdfmerge">
-        <div class="card-icon"></div>
-        <h3>PDF 合并</h3>
-        <p>上传多个 PDF 文件，合并为一个带书签导航的 PDF</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/pdfsplit" data-route="/pdfsplit">
-        <div class="card-icon"></div>
-        <h3>PDF 分割</h3>
-        <p>上传 PDF 文件，按指定页数自动分割为多个文件并打包下载</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/docx2pdf" data-route="/docx2pdf">
-        <div class="card-icon"></div>
-        <h3>Word 转 PDF</h3>
-        <p>批量上传 .docx/.doc/.rtf，通过 Microsoft Word 自动转换为 PDF</p>
-        <span class="badge badge-web">New</span>
-      </a>
-      <a class="card" href="/explorer" data-route="/explorer">
-        <div class="card-icon"></div>
-        <h3>Data Explorer</h3>
-        <p>上传 .sas7bdat 数据集，浏览变量 Metadata（类型/缺失率/样本值）</p>
-        <span class="badge badge-web">Web</span>
-      </a>
+
+    <div class="page-section">
+      <h2>🧮 计算工具</h2>
+      <div class="cards">
+        <a class="card" href="/dates" data-route="/dates"><div class="card-icon"></div><h3>日期计算</h3><p>对日期列批量加减天数、计算日期差</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/units" data-route="/units"><div class="card-icon"></div><h3>单位转换</h3><p>实验室检验单位批量统一转换（24组内置因子）</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/creatinine" data-route="/creatinine"><div class="card-icon"></div><h3>医学计算器</h3><p>批量计算 CrCl (Cockcroft-Gault) 和 eGFR (CKD-EPI 2021)</p><span class="badge badge-web">Web</span></a>
+      </div>
+    </div>
+
+    <div class="page-section">
+      <h2>📦 SAS 工具</h2>
+      <div class="cards">
+        <a class="card" href="/compare" data-route="/compare"><div class="card-icon"></div><h3>SAS 数据集比较</h3><p>上传新旧两批 SAS 数据集，比对 Schema/行数/值差异</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/sas2excel" data-route="/sas2excel"><div class="card-icon"></div><h3>SAS 转 Excel</h3><p>批量转换 .sas7bdat → Excel，第一行变量名第二行label</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/saschart" data-route="/saschart"><div class="card-icon"></div><h3>SAS 数据集图表</h3><p>上传 .sas7bdat，选列选图表类型，生成 Excel 图表</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/explorer" data-route="/explorer"><div class="card-icon"></div><h3>Data Explorer</h3><p>上传 .sas7bdat，浏览变量 Metadata（类型/缺失率/样本值）</p><span class="badge badge-web">Web</span></a>
+      </div>
+    </div>
+
+    <div class="page-section">
+      <h2>📄 PDF 工具</h2>
+      <div class="cards">
+        <a class="card" href="/docx2pdf" data-route="/docx2pdf"><div class="card-icon"></div><h3>Word 转 PDF</h3><p>批量上传 .docx/.doc/.rtf，通过 Word COM 转换为 PDF</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/pdfmerge" data-route="/pdfmerge"><div class="card-icon"></div><h3>PDF 合并</h3><p>上传多个 PDF，合并为一个带书签导航的 PDF</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/pdfsplit" data-route="/pdfsplit"><div class="card-icon"></div><h3>PDF 分割</h3><p>上传 PDF，按指定页数自动分割为多个文件并打包下载</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/pdfrotate" data-route="/pdfrotate"><div class="card-icon"></div><h3>PDF 旋转</h3><p>上传 PDF，旋转所有页面（90°/180°/270°）并下载</p><span class="badge badge-web">Web</span></a>
+        <a class="card" href="/pdftable" data-route="/pdftable"><div class="card-icon"></div><h3>PDF 表格提取</h3><p>上传 PDF，自动检测表格并导出为 Excel 文件</p><span class="badge badge-web">Web</span></a>
+      </div>
     </div>
 
     <div class="status-bar" id="status-bar">
