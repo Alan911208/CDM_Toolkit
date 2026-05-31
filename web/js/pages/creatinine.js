@@ -44,7 +44,7 @@ export async function init() {
     MDRD: 'eGFR = 175 × Scr<sup>-1.154</sup> × Age<sup>-0.203</sup> × 0.742 (if female) × 1.212 (if black)',
     BMI: 'BMI = Weight<sub>kg</sub> / Height<sub>m</sub>²',
     BSA: 'BSA = √(Height<sub>cm</sub> × Weight<sub>kg</sub> / 3600)',
-    LDL: 'LDL = TC - HDL - TG/5 (仅当 TG < 400 mg/dL)',
+    LDL: 'LDL = TC - HDL - TG/2.2 (mmol/L，仅当 TG < 4.5 mmol/L)',
     CORRCA: 'Corrected Ca = Ca + 0.8 × (4.0 - Albumin)',
     IBW: 'Male: 50 + 2.3×(Ht<sub>in</sub>-60) | Female: 45.5 + 2.3×(Ht<sub>in</sub>-60)',
     AG: 'AG = Na⁺ - (Cl⁻ + HCO₃⁻)  (正常: 8-12 mEq/L)',

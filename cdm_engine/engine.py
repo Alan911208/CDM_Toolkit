@@ -1175,16 +1175,16 @@ def calc_bsa_mosteller(weight_kg: float, height_cm: float) -> float:
 
 def calc_ldl_friedewald(tc: float, hdl: float, tg: float) -> float:
     """
-    LDL Cholesterol — Friedewald formula.
+    LDL Cholesterol — Friedewald formula (mmol/L).
 
-    LDL = TC - HDL - TG/5
+    LDL = TC - HDL - TG/2.2
 
-    Note: only valid when TG < 400 mg/dL.
-    Returns -1 if TG >= 400 or inputs invalid.
+    Note: only valid when TG < 4.5 mmol/L.
+    Returns -1 if TG >= 4.5 or inputs invalid.
     """
-    if tg >= 400 or tc <= 0 or hdl < 0 or tg <= 0:
+    if tg >= 4.5 or tc <= 0 or hdl < 0 or tg <= 0:
         return -1.0
-    return round(tc - hdl - (tg / 5.0), 1)
+    return round(tc - hdl - (tg / 2.2), 1)
 
 
 def calc_corrected_calcium(ca: float, albumin: float,
