@@ -869,7 +869,7 @@ SAS_MACROS = [
     {"id": "23_qcLabCheck", "name": "qcLabCheck", "cat": "质量控制", "desc": "实验室数据 4 项自动 QC 检查", "params": "lib=, dsn=, out="},
     {"id": "25_dmQueryReport", "name": "dmQueryReport", "cat": "质量控制", "desc": "生成 DMR Query Summary 表（T5.1-T5.3）为 RTF", "params": "qSheet=, form=, outRTF=, ver=3"},
     # Standalone
-    {"id": "rawdata_export", "name": "rawdata_export", "cat": "独立脚本", "desc": "审查原始数据并生成内容报告 Excel", "params": ""},
+    {"id": "rawdata_export", "name": "rawdata_export", "cat": "独立脚本", "desc": "审查原始数据并生成内容报告 Excel", "params": "", "type": "standalone"},
 ]
 
 # Runtime tracking: run_id → {status, log, start_time}

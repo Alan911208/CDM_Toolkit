@@ -216,23 +216,34 @@ ${sasEnvTemplate()}
       const data = await res.json();
       if (data.error) { editor.value = `/* ${data.error} */`; return; }
       const macro = data.macro;
-      infoEl.innerHTML = `<strong>${macro.name}</strong> — ${macro.desc}<br><span style="font-size:11px;color:#999;">参数: %macro ${macro.name}(${macro.params || '无'})</span>`;
+      const isStd = macro.type === 'standalone';
+      infoEl.innerHTML = `<strong>${macro.name}</strong> — ${macro.desc}<br><span style="font-size:11px;color:#999;">${isStd ? '独立 SAS 程序（直接运行）' : '参数: %' + macro.name + '(' + (macro.params || '无') + ')'}</span>`;
 
+      const isStandalone = macro.type === 'standalone';
       let code = `/* ═══════════════════════════════════════════════════════════════
    CDM Toolkit SAS Runner
-   宏: ${macro.name} (${macro.id})
+   ${isStandalone ? '程序' : '宏'}: ${macro.name} (${macro.id})
    说明: ${macro.desc}
-   参数: ${macro.params || '无'}
+   ${isStandalone ? '' : '参数: ' + (macro.params || '无')}
    配置: ${document.getElementById('sas-config').value === 'zh' ? '中文 (zh)' : 'UTF-8 (u8)'}
    ═══════════════════════════════════════════════════════════════ */
 
 ${sasEnvTemplate()}`;
 
-      if (data.source) code += `/* ── 宏定义 ── */\n${data.source}\n\n`;
-      if (data.test) {
-        code += `/* ── 测试调用（请根据实际数据修改参数） ── */\n${data.test}\n`;
-      } else if (data.source) {
-        code += `/* ── 调用宏（请修改参数） ── */\n%${macro.name}(${macro.params || ''})\n`;
+      const isStandalone = macro.type === 'standalone';
+      if (data.source) {
+        if (isStandalone) {
+          code += `/* ── 独立 SAS 程序（可直接运行） ── */\n${data.source}\n`;
+        } else {
+          code += `/* ── 宏定义 ── */\n${data.source}\n\n`;
+        }
+      }
+      if (!isStandalone) {
+        if (data.test) {
+          code += `/* ── 测试调用（请根据实际数据修改参数） ── */\n${data.test}\n`;
+        } else if (data.source) {
+          code += `/* ── 调用宏（请修改参数） ── */\n%${macro.name}(${macro.params || ''})\n`;
+        }
       }
 
       editor.value = code;
