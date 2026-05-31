@@ -1418,56 +1418,6 @@ def generate_chart_from_sas(
     return output_path
 
 
-# ============================================================
-# 22b. SAS Conversion Tools (Python equivalents of SAS macros)
-# ============================================================
-def sas_to_csv(sas_path: str, output_path: str) -> str:
-    """Convert a SAS dataset to CSV."""
-    df = sas_to_dataframe(sas_path)
-    df.to_csv(output_path, index=False)
-    return output_path
-
-
-def csv_to_sas(csv_path: str, output_path: str) -> str:
-    """Convert a CSV file to SAS dataset (.sas7bdat). Requires pyreadstat."""
-    import pandas as pd
-    df = pd.read_csv(csv_path)
-    import pyreadstat
-    pyreadstat.write_sas7bdat(df, output_path)
-    return output_path
-
-
-def sas_to_excel_file(sas_path: str, output_path: str) -> str:
-    """Convert a SAS dataset to Excel (.xlsx)."""
-    import pandas as pd
-    df = sas_to_dataframe(sas_path)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "DATA"
-    for ci, col in enumerate(df.columns, 1):
-        cell = ws.cell(row=1, column=ci, value=str(col))
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-    for ri, (_, row) in enumerate(df.iterrows()):
-        for ci, col in enumerate(df.columns, 1):
-            val = row[col]
-            if isinstance(val, float) and pd.isna(val):
-                val = None
-            ws.cell(row=ri + 2, column=ci, value=val)
-    auto_width(ws)
-    wb.save(output_path)
-    return output_path
-
-
-def excel_to_sas_file(xlsx_path: str, output_path: str) -> str:
-    """Convert an Excel file to SAS dataset (.sas7bdat). Requires pyreadstat."""
-    import pandas as pd
-    df = pd.read_excel(xlsx_path)
-    import pyreadstat
-    pyreadstat.write_sas7bdat(df, output_path)
-    return output_path
-
-
 def sas_preview(sas_path: str, rows: int = 100) -> dict:
     """Preview a SAS dataset — return headers + first N rows as JSON."""
     df = sas_to_dataframe(sas_path)

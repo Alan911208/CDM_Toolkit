@@ -802,51 +802,6 @@ async def api_explorer_scan(
         return JSONResponse({"error": f"扫描失败: {str(e)}"}, status_code=400)
 
 
-# ── SAS Conversion Tools ──────────────────────────────────────────────────
-
-@app.post("/api/convert/sas2csv")
-async def api_sas2csv(file: UploadFile = File(...)):
-    from cdm_engine import sas_to_csv
-    in_path = os.path.join(tempfile.mkdtemp(), "input.sas7bdat")
-    out_path = os.path.join(tempfile.mkdtemp(), "output.csv")
-    with open(in_path, "wb") as f: f.write(file.file.read())
-    sas_to_csv(in_path, out_path)
-    return FileResponse(out_path, filename="output.csv", media_type="text/csv")
-
-
-@app.post("/api/convert/sas2xlsx")
-async def api_sas2xlsx(file: UploadFile = File(...)):
-    from cdm_engine import sas_to_excel_file
-    in_path = os.path.join(tempfile.mkdtemp(), "input.sas7bdat")
-    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
-    with open(in_path, "wb") as f: f.write(file.file.read())
-    sas_to_excel_file(in_path, out_path)
-    return FileResponse(out_path, filename="output.xlsx",
-                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-@app.post("/api/convert/csv2sas")
-async def api_csv2sas(file: UploadFile = File(...)):
-    from cdm_engine import csv_to_sas
-    in_path = os.path.join(tempfile.mkdtemp(), "input.csv")
-    out_path = os.path.join(tempfile.mkdtemp(), "output.sas7bdat")
-    with open(in_path, "wb") as f: f.write(file.file.read())
-    csv_to_sas(in_path, out_path)
-    return FileResponse(out_path, filename="output.sas7bdat",
-                        media_type="application/octet-stream")
-
-
-@app.post("/api/convert/xlsx2sas")
-async def api_xlsx2sas(file: UploadFile = File(...)):
-    from cdm_engine import excel_to_sas_file
-    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
-    out_path = os.path.join(tempfile.mkdtemp(), "output.sas7bdat")
-    with open(in_path, "wb") as f: f.write(file.file.read())
-    excel_to_sas_file(in_path, out_path)
-    return FileResponse(out_path, filename="output.sas7bdat",
-                        media_type="application/octet-stream")
-
-
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 

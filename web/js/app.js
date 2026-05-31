@@ -24,7 +24,6 @@ const ROUTES = {
   '/creatinine':{ title: '医学计算器', page: 'creatinine.js' },
   '/saschart': { title: 'SAS 图表', page: 'saschart.js' },
   '/explorer': { title: 'Data Explorer', page: 'explorer.js' },
-  '/convert':  { title: 'SAS 转换', page: 'convert.js' },
 };
 
 let dashboardHTML = null;
