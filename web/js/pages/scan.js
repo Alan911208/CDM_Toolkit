@@ -1,11 +1,13 @@
 import { api, showToast } from '../app.js';
 export default function render() {
-  return `<div class="page-section"><h2>🔍 特殊字符扫描</h2><p class="section-subtitle">扫描工作表中的非标准字符，生成 EDC 合规报告</p></div>
+  return `<workspace-panel></workspace-panel>
+    <div class="page-section"><h2>🔍 特殊字符扫描</h2><p class="section-subtitle">扫描工作表中的非标准字符，生成 EDC 合规报告</p></div>
     <file-upload accept=".xlsx,.xls"></file-upload>
     <div class="form-row mt-16"><div class="form-group"><label for="scan-system">EDC 系统</label><select id="scan-system"><option value="Rave">Rave</option><option value="Clinflash">Clinflash</option></select></div></div>
     <button id="scan-btn" class="btn btn-primary" disabled>▶ 开始扫描</button>
     <progress-bar id="scan-progress" style="display:none;"></progress-bar>
-    <div id="scan-results" style="margin-top:16px;"></div>`;
+    <div id="scan-results" style="margin-top:16px;"></div>
+    <pipeline-nav context="scan"></pipeline-nav>`;
 }
 export async function init() {
   const upload = document.querySelector('file-upload');

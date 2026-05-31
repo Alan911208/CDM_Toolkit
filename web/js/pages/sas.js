@@ -26,8 +26,10 @@ export default function render() {
           <button id="sas-clear-log" class="btn btn-outline" style="font-size:12px;padding:4px 12px;">清空</button>
         </div>
         <pre id="sas-log" class="sas-log">等待执行...</pre>
+        <div id="sas-workspace-hint" style="margin-top:12px;"></div>
       </div>
     </div>
+    <pipeline-nav context="sas"></pipeline-nav>
     <style>
       .sas-layout { display: flex; gap: 16px; min-height: 70vh; }
       .sas-sidebar { width: 280px; min-width: 280px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); overflow-y: auto; max-height: 80vh; }
@@ -199,6 +201,9 @@ export async function init() {
             runBtn.disabled = false;
             runBtn.textContent = '▶ 执行 SAS 程序';
             logEl.textContent += `\n\n/* ══ SAS 执行完成 (${elapsed}秒) ══ */`;
+            // Show workspace hint
+            const hint = document.getElementById('sas-workspace-hint');
+            if (hint) hint.innerHTML = '<div style="background:#E8F5E9;padding:12px;border-radius:8px;font-size:13px;">💡 SAS 执行完毕。如果生成了 Excel 文件，请前往 <a href="/" data-route="/" style="color:var(--color-primary);">仪表盘</a> 上传到工作区继续处理。</div>';
           } else if (sj.status === 'error') {
             clearInterval(pollTimer);
             pollTimer = null;

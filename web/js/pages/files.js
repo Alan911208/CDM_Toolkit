@@ -1,6 +1,7 @@
 import { api, showToast } from '../app.js';
 export default function render() {
-  return `<div class="page-section"><h2>📁 文件目录浏览</h2><p class="section-subtitle">浏览本地文件夹内容，一键导出 Excel 清单</p></div>
+  return `<workspace-panel></workspace-panel>
+    <div class="page-section"><h2>📁 文件目录浏览</h2><p class="section-subtitle">浏览本地文件夹内容，一键导出 Excel 清单</p></div>
     <div class="form-group"><label for="files-path">文件夹路径</label><input type="text" id="files-path" placeholder="如 C:\Data\CDM"></div>
     <div class="form-row"><div class="form-group"><label for="files-filter">文件类型</label><select id="files-filter"><option value="*.*">所有文件</option><option value="*.xlsx">Excel (*.xlsx)</option><option value="*.xls">Excel (*.xls)</option><option value="*.sas7bdat">SAS (*.sas7bdat)</option><option value="*.csv">CSV (*.csv)</option><option value="*.pdf">PDF (*.pdf)</option></select></div><div class="form-group"><label><input type="checkbox" id="files-sub" checked> 包含子文件夹</label></div></div>
     <button id="files-btn" class="btn btn-primary">🔍 浏览</button> <button id="files-export" class="btn btn-outline" style="display:none;">📥 导出 JSON</button>
