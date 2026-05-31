@@ -782,6 +782,26 @@ async def api_list_sheets(
     return {"count": len(sheets), "sheets": sheets}
 
 
+# ── Raw Data QC Portal ───────────────────────────────────────────────────
+
+
+@app.post("/api/qc/analyze")
+async def api_qc_analyze(
+    file: UploadFile = File(...),
+):
+    """Upload a .sas7bdat file and get comprehensive QC analysis."""
+    from cdm_engine import analyze_sas_dataset
+    in_path = os.path.join(tempfile.mkdtemp(), file.filename or "input.sas7bdat")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    try:
+        result = analyze_sas_dataset(in_path)
+        return result
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": f"QC 分析失败: {str(e)}"}, status_code=400)
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 

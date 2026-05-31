@@ -67,6 +67,8 @@ from cdm_engine.engine import (
     sas_to_dataframe,
     generate_chart_from_sas,
     sas_preview,
+    # QC analysis
+    analyze_sas_dataset,
     # Utilities
     apply_header_style,
     auto_width,
