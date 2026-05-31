@@ -88,7 +88,7 @@ function sasEnvTemplate() {
 %let _srcPath = %sysfunc(pathname(work));
 %let _tgtPath = %sysfunc(pathname(work));
 %let _tmpPath = %sysfunc(pathname(work));
-${libnamePath ? `libname _cdm "${libnamePath}";\n%let _cdmData = ${libnamePath};` : '/* 未上传 SAS 数据集 — 上传后可在此处自动生成 libname */'}
+${libnamePath ? `libname raw "${libnamePath}";\n%let rawData = ${libnamePath};` : '/* 未上传 SAS 数据集 — 上传后可在此处自动生成 libname */'}
 `;
 }
 
