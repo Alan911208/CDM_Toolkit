@@ -1519,12 +1519,13 @@ def compare_datasets(
     """
     import pandas as pd
     import os as _os
+    import tempfile as _tempfile
     from openpyxl import Workbook
     from openpyxl.styles import Font as OpFont, PatternFill as OpFill
     from openpyxl.utils import get_column_letter as _gcl
 
     if not output_path:
-        output_path = _os.path.join(tempfile.mkdtemp(), "comparison_report.xlsx")
+        output_path = _os.path.join(_tempfile.mkdtemp(), "comparison_report.xlsx")
 
     # Gather datasets
     old_files = {}
