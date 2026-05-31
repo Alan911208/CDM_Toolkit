@@ -875,6 +875,58 @@ async def api_docx_to_pdf(
     return {"error": "所有文件转换失败", "results": results}
 
 
+# ── PDF Split ────────────────────────────────────────────────────────────
+
+
+@app.post("/api/pdf-split")
+async def api_pdf_split(
+    file: UploadFile = File(...),
+    group_size: int = Form(100),
+):
+    """Split a PDF into chunks of N pages each."""
+    import zipfile
+    from PyPDF2 import PdfReader, PdfWriter
+
+    in_path = os.path.join(tempfile.mkdtemp(), file.filename or "input.pdf")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+
+    reader = PdfReader(in_path)
+    page_count = len(reader.pages)
+
+    if page_count <= group_size:
+        return FileResponse(in_path, filename=file.filename,
+                            media_type="application/pdf")
+
+    tmp_out = tempfile.mkdtemp()
+    base = os.path.splitext(file.filename or "document")[0]
+    num_groups = (page_count + group_size - 1) // group_size
+    out_files = []
+
+    for gi in range(num_groups):
+        start = gi * group_size
+        end = min(start + group_size, page_count)
+        writer = PdfWriter()
+        for i in range(start, end):
+            writer.add_page(reader.pages[i])
+
+        out_name = f"{base}_pages_{str(start+1).zfill(4)}_{str(end).zfill(4)}.pdf"
+        out_path = os.path.join(tmp_out, out_name)
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        out_files.append(out_path)
+
+    if len(out_files) == 1:
+        return FileResponse(out_files[0], filename=os.path.basename(out_files[0]),
+                            media_type="application/pdf")
+
+    zip_path = os.path.join(tmp_out, "pdf_split.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for pf in out_files:
+            zf.write(pf, os.path.basename(pf))
+    return FileResponse(zip_path, filename="pdf_split.zip", media_type="application/zip")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 

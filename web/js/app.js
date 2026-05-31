@@ -23,6 +23,7 @@ const ROUTES = {
   '/changes':   { title: '修改痕迹', page: 'changes.js' },
   '/creatinine':{ title: '医学计算器', page: 'creatinine.js' },
   '/saschart': { title: 'SAS 图表', page: 'saschart.js' },
+  '/pdfsplit': { title: 'PDF 分割', page: 'pdfsplit.js' },
   '/docx2pdf': { title: 'Word 转 PDF', page: 'docx2pdf.js' },
   '/explorer': { title: 'Data Explorer', page: 'explorer.js' },
 };
