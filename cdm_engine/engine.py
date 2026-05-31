@@ -1285,14 +1285,14 @@ def sas_to_dataframe(sas_path: str) -> "pd.DataFrame":
             try:
                 df, _ = _prs.read_sas7bdat(sas_path, encoding=enc)
                 return df
-            except (UnicodeDecodeError, LookupError):
-                continue
+            except Exception:
+                continue  # pyreadstat raises ReadstatError, not UnicodeDecodeError
 
     # Fallback: pandas built-in SAS reader
     for enc in ENCODINGS:
         try:
             return pd.read_sas(sas_path, encoding=enc)
-        except (UnicodeDecodeError, LookupError):
+        except Exception:
             continue
 
     # Last resort
