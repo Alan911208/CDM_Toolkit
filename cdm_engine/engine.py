@@ -1857,8 +1857,25 @@ def join_datasets(left_path: str, right_path: str, key: str, how: str = "inner",
         if k not in left.columns: raise ValueError(f"左表无列: {k}")
     for k in rkeys:
         if k not in right.columns: raise ValueError(f"右表无列: {k}")
-    result = pd.merge(left, right, left_on=lkeys, right_on=rkeys, how=how,
-                      suffixes=('_left', '_right'))
+    # Find overlapping non-key columns — right overwrites left
+    overlap = [c for c in left.columns if c in right.columns and c not in lkeys and c not in rkeys]
+    if overlap:
+        right_renamed = right.rename(columns={c: c + '_right' for c in overlap})
+        left_renamed = left.rename(columns={c: c + '_left' for c in overlap})
+        # Build column mapping for merge
+        l_on = [(k + '_left') if k in overlap else k for k in lkeys]
+        r_on = [(k + '_right') if k in overlap else k for k in rkeys]
+        result = pd.merge(left_renamed, right_renamed, left_on=l_on, right_on=r_on, how=how)
+        # Overwrite: right value takes priority, then drop _right, rename _left back
+        for c in overlap:
+            cl = c + '_left'; cr = c + '_right'
+            if cl in result.columns and cr in result.columns:
+                result[cl] = result[cr].fillna(result[cl])
+                result.drop(columns=[cr], inplace=True)
+                result.rename(columns={cl: c}, inplace=True)
+    else:
+        result = pd.merge(left, right, left_on=lkeys, right_on=rkeys, how=how)
+
     if not output_path: output_path = os.path.join(tempfile.mkdtemp(), "joined.xlsx")
     wb = Workbook(); ws = wb.active; ws.title = "Join_" + how
     for ci, col in enumerate(result.columns, 1):
