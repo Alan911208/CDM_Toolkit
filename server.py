@@ -178,8 +178,9 @@ _WORKSPACE_TTL = 3600  # 1 hour
 def _get_workspace(request: Request) -> dict:
     """Get or create workspace for session."""
     sid = request.headers.get("X-CDM-Session") or request.cookies.get("cdm_session")
-    if not sid or sid not in _workspaces:
+    if not sid:
         sid = _uuid.uuid4().hex[:16]
+    if sid not in _workspaces:
         ws_dir = tempfile.mkdtemp(prefix="cdm_ws_")
         _workspaces[sid] = {
             "dir": ws_dir,

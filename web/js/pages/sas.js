@@ -101,15 +101,25 @@ export async function init() {
   const statusBadge = document.getElementById('sas-status-badge');
   const freeModeBtn = document.getElementById('sas-free-mode');
 
+  // ── Init Session (client-managed UUID) ──
+  if (!localStorage.getItem('cdm_session')) {
+    localStorage.setItem('cdm_session', crypto.randomUUID());
+  }
+
   // ── Dataset Upload ──
   const datasetInput = document.getElementById('sas-dataset-input');
   const datasetDrop = document.getElementById('sas-dataset-drop');
   const datasetList = document.getElementById('sas-dataset-list');
   const datasetCount = document.getElementById('sas-dataset-count');
 
+  function _sasSessionHeaders() {
+    const sid = localStorage.getItem('cdm_session') || '';
+    return sid ? { 'X-CDM-Session': sid } : {};
+  }
+
   async function loadDatasets() {
     try {
-      const res = await fetch('/api/sas/datasets');
+      const res = await fetch('/api/sas/datasets', { headers: _sasSessionHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       libnamePath = data.libname_path || '';
@@ -137,7 +147,11 @@ export async function init() {
     const fd = new FormData();
     for (const f of files) fd.append('files', f);
     try {
-      const res = await fetch('/api/sas/upload-datasets', { method: 'POST', body: fd });
+      const res = await fetch('/api/sas/upload-datasets', {
+        method: 'POST',
+        headers: _sasSessionHeaders(),
+        body: fd,
+      });
       const data = await res.json();
       libnamePath = data.libname_path || '';
       showToast(`已上传 ${data.uploaded.length} 个数据集`);
