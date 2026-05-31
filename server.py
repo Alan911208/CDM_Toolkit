@@ -19,12 +19,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from cdm_engine import (
     merge_workbooks_from_uploads,
     split_sheet_file,
-    scan_special_chars,
     add_days_to_column_file,
     convert_lab_units_file,
     list_directory,
-    delete_strikethrough_rows,
-    clear_strikethrough,
     create_sheets_from_list,
     delete_sheets,
     calc_cockcroft_gault,
@@ -95,34 +92,6 @@ async def api_split(
     result_path = split_sheet_file(file, split_col, header_rows)
     return FileResponse(result_path, filename="split.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-@app.post("/api/scan-chars")
-async def api_scan_chars(
-    file: UploadFile = File(...),
-    system: str = Form("Rave"),
-):
-    """Scan for special characters in uploaded workbook."""
-    from openpyxl import load_workbook
-    from openpyxl.utils import get_column_letter
-
-    tmp_dir = tempfile.mkdtemp()
-    in_path = os.path.join(tmp_dir, "input.xlsx")
-    with open(in_path, "wb") as f:
-        f.write(file.file.read())
-    wb = load_workbook(in_path)
-    all_findings = []
-    for ws in wb.worksheets:
-        findings = scan_special_chars(ws)
-        for row, col, val in findings:
-            all_findings.append({
-                "sheet": ws.title,
-                "row": row,
-                "col": get_column_letter(col),
-                "cell": f"{get_column_letter(col)}{row}",
-                "value": val[:200] if len(val) > 200 else val,
-            })
-    return {"findings": all_findings, "total": len(all_findings), "system": system}
 
 
 @app.post("/api/file-listing")
@@ -499,35 +468,6 @@ async def ws_download(request: Request):
         from fastapi.responses import JSONResponse
         return JSONResponse({"error": "工作区无文件"}, status_code=404)
     return FileResponse(ws["current_file"], filename=ws["file_name"] or "output.xlsx",
-                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-# ── Strikethrough ─────────────────────────────────────────────────────────
-
-
-@app.post("/api/strikethrough")
-async def api_strikethrough(
-    file: UploadFile = File(...),
-    action: str = Form("delete"),
-):
-    """Delete strikethrough rows or clear strikethrough formatting."""
-    from openpyxl import load_workbook
-    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
-    with open(in_path, "wb") as f:
-        f.write(file.file.read())
-    wb = load_workbook(in_path)
-    ws = wb.active
-
-    if action == "delete":
-        count = delete_strikethrough_rows(ws)
-        msg = f"删除了 {count} 行含删除线的数据"
-    else:
-        count = clear_strikethrough(ws)
-        msg = f"清除了 {count} 个单元格的删除线格式"
-
-    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
-    wb.save(out_path)
-    return FileResponse(out_path, filename="strikethrough_result.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
