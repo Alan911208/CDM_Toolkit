@@ -927,6 +927,45 @@ async def api_pdf_split(
     return FileResponse(zip_path, filename="pdf_split.zip", media_type="application/zip")
 
 
+# ── PDF Merge ────────────────────────────────────────────────────────────
+
+
+@app.post("/api/pdf-merge")
+async def api_pdf_merge(
+    files: list[UploadFile] = File(...),
+):
+    """Merge multiple PDF files into one, with bookmarks."""
+    from PyPDF2 import PdfReader, PdfWriter
+
+    reader_streams = []
+    writer = PdfWriter()
+    total_pages = 0
+
+    try:
+        for f in files:
+            fname = f.filename or "document.pdf"
+            reader = PdfReader(f.file)
+            page_count = len(reader.pages)
+
+            for i in range(page_count):
+                writer.add_page(reader.pages[i])
+
+            # Add bookmark
+            bookmark_title = os.path.splitext(fname)[0].strip()
+            writer.add_outline_item(title=bookmark_title, page_number=total_pages)
+            total_pages += page_count
+
+        out_path = os.path.join(tempfile.mkdtemp(), "Combined.pdf")
+        with open(out_path, "wb") as out:
+            writer.write(out)
+
+        return FileResponse(out_path, filename="Combined.pdf", media_type="application/pdf")
+    finally:
+        for s in reader_streams:
+            try: s.close()
+            except: pass
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
