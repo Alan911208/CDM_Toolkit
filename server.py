@@ -2,10 +2,8 @@
 CDM Toolkit Web Server — FastAPI application.
 Start with: cdm-tools serve  (or: python server.py)
 """
-import asyncio
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import uuid as _uuid
@@ -470,54 +468,6 @@ async def ws_download(request: Request):
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-# ── SAS Dataset Upload ────────────────────────────────────────────────────
-
-
-@app.post("/api/sas/upload-datasets")
-async def sas_upload_datasets(request: Request, files: list[UploadFile] = File(...)):
-    """Upload SAS datasets (.sas7bdat) to the session workspace for SAS macros to use."""
-    _cleanup_workspaces()
-    ws = _get_workspace(request)
-    ds_dir = os.path.join(ws["dir"], "datasets")
-    os.makedirs(ds_dir, exist_ok=True)
-
-    uploaded = []
-    for f in files:
-        fname = f.filename or "dataset.sas7bdat"
-        fpath = os.path.join(ds_dir, fname)
-        with open(fpath, "wb") as out:
-            out.write(f.file.read())
-        size_kb = os.path.getsize(fpath) / 1024
-        uploaded.append({"name": fname, "size_kb": round(size_kb, 1)})
-
-    return {"uploaded": uploaded, "datasets": _list_sas_datasets(ds_dir),
-            "libname_path": ds_dir.replace("\\", "/")}
-
-
-@app.get("/api/sas/datasets")
-async def sas_list_datasets(request: Request):
-    """List uploaded SAS datasets in the session workspace."""
-    ws = _get_workspace(request)
-    ds_dir = os.path.join(ws["dir"], "datasets")
-    os.makedirs(ds_dir, exist_ok=True)
-    return {"datasets": _list_sas_datasets(ds_dir),
-            "libname_path": ds_dir.replace("\\", "/")}
-
-
-def _list_sas_datasets(ds_dir: str) -> list[dict]:
-    """List .sas7bdat files in a directory."""
-    datasets = []
-    if os.path.isdir(ds_dir):
-        for f in sorted(os.listdir(ds_dir)):
-            if f.lower().endswith(".sas7bdat"):
-                fpath = os.path.join(ds_dir, f)
-                datasets.append({
-                    "name": f,
-                    "size_kb": round(os.path.getsize(fpath) / 1024, 1),
-                })
-    return datasets
-
-
 # ── Strikethrough ─────────────────────────────────────────────────────────
 
 
@@ -832,251 +782,47 @@ async def api_list_sheets(
     return {"count": len(sheets), "sheets": sheets}
 
 
-# ── SAS Execution ──────────────────────────────────────────────────────────
-
-SAS_EXE = r"C:\Program Files\SASHome\SASFoundation\9.4\sas.exe"
-SAS_CONFIGS = {
-    "zh": r"C:\Program Files\SASHome\SASFoundation\9.4\nls\zh\SASV9.CFG",
-    "u8": r"C:\Program Files\SASHome\SASFoundation\9.4\nls\u8\SASV9.CFG",
-}
-SAS_MACROS_DIR = Path(__file__).parent / "sas_macros"
-
-# SAS program metadata — generic/reusable programs for the sidebar
-SAS_MACROS = [
-    # Category 1: 数据检查与验证
-    {"id": "01_varExist", "name": "varExist", "cat": "数据检查", "desc": "检查数据集中是否存在指定变量", "params": "dsn=, var="},
-    {"id": "02_dsRecCount", "name": "dsRecCount", "cat": "数据检查", "desc": "列出目录中所有数据集的记录/变量计数", "params": "lib=, label="},
-    {"id": "03_dateVarScan", "name": "dateVarScan", "cat": "数据检查", "desc": "扫描库中所有含 DTC/DAT/TIM 的字符变量", "params": "libref="},
-    # Category 2: 数据操作与清理
-    {"id": "05_textSplit", "name": "textSplit", "cat": "数据操作", "desc": "将长字符变量（>200）拆分为多个列", "params": "dsn=, var="},
-    {"id": "07_dropVar", "name": "dropVar", "cat": "数据操作", "desc": "从库中所有数据集批量删除指定变量", "params": "var=, src=, tgt="},
-    {"id": "08_dropVarSuffix", "name": "dropVarSuffix", "cat": "数据操作", "desc": "批量删除名称以指定后缀结尾的变量", "params": "suffix=_u, src=, tgt="},
-    # Category 3: 数据转换
-    {"id": "10_sas2csv", "name": "sas2csv", "cat": "数据转换", "desc": "将目录中所有 SAS 数据集批量转换为 CSV", "params": "src=, tgt="},
-    {"id": "11_csv2sas", "name": "csv2sas", "cat": "数据转换", "desc": "将 CSV 文件导入为 SAS 数据集", "params": "file=, dsn=csv2sas, naming=XLS2SAS, lrecl=5000"},
-    {"id": "12_xlsxImport", "name": "xlsxImport", "cat": "数据转换", "desc": "将 Excel 工作表批量导入为 SAS 数据集 (需 SAS/ACCESS)", "params": "file=, out="},
-    {"id": "13_sas2xlsx", "name": "sas2xlsx", "cat": "数据转换", "desc": "将 SAS 数据集导出到单个 Excel 工作簿 (需 SAS/ACCESS)", "params": "lib=, dir=, name=, ext=xlsx"},
-    {"id": "15_xls2sas", "name": "xls2sas", "cat": "数据转换", "desc": "将 Excel 工作表导入 SAS 数据集 (需 SAS/ACCESS)", "params": "file=, insheet=, outset=, outlib=work, ..."},
-    # Category 4: 日期与版本
-    {"id": "16_stampRunDate", "name": "stampRunDate", "cat": "日期版本", "desc": "为库中所有数据集添加固定运行日期变量", "params": "lib=, date="},
-    # Category 5: 独立脚本
-    {"id": "rawdata_export", "name": "rawdata_export", "cat": "独立脚本", "desc": "审查原始数据，优化变量长度，生成 Excel 内容报告", "params": "", "type": "standalone"},
-]
-
-# Runtime tracking: run_id → {status, log, start_time}
-_sas_jobs: dict = {}
+# ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
-@app.get("/api/sas-list")
-async def api_sas_list():
-    """Return all available SAS macros with metadata."""
-    return {"macros": SAS_MACROS, "configs": list(SAS_CONFIGS.keys())}
+@app.post("/api/sas-chart")
+async def api_sas_chart(
+    file: UploadFile = File(...),
+    chart_type: str = Form("bar"),
+    x_col: str = Form(""),
+    y_col: str = Form(""),
+    group_col: str = Form(""),
+    title: str = Form("SAS Data Chart"),
+):
+    """Generate an Excel chart from an uploaded .sas7bdat file."""
+    from cdm_engine import generate_chart_from_sas
+    in_path = os.path.join(tempfile.mkdtemp(), "input.sas7bdat")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+
+    out_path = os.path.join(tempfile.mkdtemp(), "chart_output.xlsx")
+    generate_chart_from_sas(in_path, out_path, chart_type=chart_type,
+                            x_col=x_col, y_col=y_col, group_col=group_col, title=title)
+    return FileResponse(out_path, filename="sas_chart.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-@app.get("/api/sas-load/{macro_id}")
-async def api_sas_load(macro_id: str):
-    """Load a SAS macro's source code and test file."""
-    macro = next((m for m in SAS_MACROS if m["id"] == macro_id), None)
-    if not macro:
-        return {"error": f"未找到宏: {macro_id}"}
-
-    result = {"macro": macro, "source": "", "test": ""}
-
-    # Load macro source
-    macro_dir = SAS_MACROS_DIR / macro_id
-    if macro_dir.is_dir():
-        for f in macro_dir.iterdir():
-            if f.suffix == ".sas" and not f.name.startswith("test_"):
-                result["source"] = f.read_text(encoding="utf-8", errors="replace")
-            elif f.name.startswith("test_"):
-                result["test"] = f.read_text(encoding="utf-8", errors="replace")
-        # Load README
-        readme = macro_dir / "README.md"
-        if readme.exists():
-            result["readme"] = readme.read_text(encoding="utf-8", errors="replace")
-    elif macro_id == "rawdata_export":
-        sas_file = SAS_MACROS_DIR / "rawdata_export.sas"
-        if sas_file.exists():
-            result["source"] = sas_file.read_text(encoding="utf-8", errors="replace")
-
-    return result
-
-
-@app.post("/api/sas-run")
-async def api_sas_run(request: Request):
-    """Execute SAS code and return a job ID for polling."""
-    data = await request.json()
-    sas_code = data.get("code", "")
-    config_key = data.get("config", "zh")
-
-    if not sas_code.strip():
-        return {"error": "SAS 代码为空"}
-
-    config_path = SAS_CONFIGS.get(config_key, SAS_CONFIGS["zh"])
-    if not os.path.exists(SAS_EXE):
-        return {"error": f"SAS 可执行文件不存在: {SAS_EXE}"}
-    if not os.path.exists(config_path):
-        return {"error": f"SAS 配置文件不存在: {config_path}"}
-
-    job_id = _uuid.uuid4().hex[:12]
-    _sas_jobs[job_id] = {"status": "running", "log": "", "start_time": _time.time()}
-
-    # Run SAS in background
-    asyncio.create_task(_run_sas(job_id, sas_code, config_path))
-
-    return {"job_id": job_id, "status": "running"}
-
-
-@app.get("/api/sas-status/{job_id}")
-async def api_sas_status(job_id: str):
-    """Poll SAS job status and get log output."""
-    job = _sas_jobs.get(job_id)
-    if not job:
-        return {"error": "任务不存在"}
-    return {
-        "status": job["status"],
-        "log": job.get("log", ""),
-        "parsed": job.get("parsed"),
-        "elapsed": round(_time.time() - job["start_time"], 1),
-    }
-
-
-def _parse_sas_log(log_text: str) -> dict:
-    """Parse SAS log into structured sections: errors, warnings, notes, output files."""
-    import re
-    result = {
-        "errors": [],
-        "warnings": [],
-        "notes": [],
-        "output_files": [],
-        "real_time": "",
-        "cpu_time": "",
-        "has_error": False,
-        "has_warning": False,
-    }
-
-    lines = log_text.split("\n")
-    current = None
-    buf = []
-
-    for line in lines:
-        # Detect line type
-        stripped = line.strip()
-        upper = stripped.upper()
-
-        if re.match(r"^ERROR\b", upper) or re.match(r"^ERROR:", upper):
-            if buf and current: result[current].append("\n".join(buf))
-            current, buf = "errors", [line]
-            result["has_error"] = True
-        elif re.match(r"^WARNING\b", upper) or re.match(r"^WARNING:", upper):
-            if buf and current: result[current].append("\n".join(buf))
-            current, buf = "warnings", [line]
-            result["has_warning"] = True
-        elif re.match(r"^NOTE:", upper):
-            # Check for output file references
-            file_match = re.search(r"written to\s+(\S+)", stripped, re.IGNORECASE)
-            if file_match:
-                fname = file_match.group(1).strip('"')
-                result["output_files"].append({"path": fname, "name": os.path.basename(fname)})
-            if buf and current: result[current].append("\n".join(buf))
-            current, buf = "notes", [line]
-        elif re.match(r"^NOTE\b", upper) and ("SAS" in upper or "PROCEDURE" in upper or "DATA" in upper or "used" in upper):
-            if buf and current: result[current].append("\n".join(buf))
-            current, buf = "notes", [line]
-        elif re.search(r"real time\s", stripped, re.IGNORECASE):
-            result["real_time"] = stripped.strip()
-        elif re.search(r"cpu time\s", stripped, re.IGNORECASE):
-            result["cpu_time"] = stripped.strip()
-        else:
-            if current:
-                buf.append(line)
-
-    # Flush last buffer
-    if buf and current:
-        result[current].append("\n".join(buf))
-
-    # Limit each category
-    for key in ("errors", "warnings", "notes"):
-        if len(result[key]) > 50:
-            result[key] = result[key][:50]
-
-    return result
-
-
-async def _run_sas(job_id: str, sas_code: str, config_path: str):
-    """Run SAS in a subprocess, capture log."""
-    job = _sas_jobs.get(job_id)
-    tmp_dir = tempfile.mkdtemp(prefix="cdm_sas_")
-    sas_file = os.path.join(tmp_dir, "program.sas")
-    log_file = os.path.join(tmp_dir, "sas_output.log")
-    lst_file = os.path.join(tmp_dir, "sas_output.lst")
-
-    # Encoding: zh config → GBK, u8 config → UTF-8
-    file_encoding = "gbk" if "zh" in config_path.lower() else "utf-8"
-
-    # Include SASAUTOS so macros can %include helpers from their directory
-    sas_autos = str(SAS_MACROS_DIR).replace("\\", "/")
-    header = f"""
-/* CDM Toolkit — SAS Runner */
-OPTIONS NOXWAIT NOXSYNC;
-OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
-%let _cdm_tmpdir = {tmp_dir.replace(chr(92), '/')};
-"""
-    full_code = header + "\n" + sas_code
-
+@app.post("/api/sas-preview")
+async def api_sas_preview(
+    file: UploadFile = File(...),
+    rows: int = Form(100),
+):
+    """Preview a SAS dataset — return headers + first N rows."""
+    from cdm_engine import sas_preview
+    in_path = os.path.join(tempfile.mkdtemp(), "input.sas7bdat")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
     try:
-        with open(sas_file, "w", encoding=file_encoding) as f:
-            f.write(full_code)
-
-        cmd = [
-            SAS_EXE,
-            "-config", config_path,
-            "-sysin", sas_file,
-            "-log", log_file,
-            "-print", lst_file,
-            "-nosplash", "-nologo",
-            "-nodms", "-nonumber", "-nodate",
-        ]
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=300
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            if job:
-                job["status"] = "timeout"
-                job["log"] = "⚠️ SAS 执行超时（300 秒）"
-            return
-
-        # Read log with correct encoding
-        log_text = ""
-        if os.path.exists(log_file):
-            with open(log_file, "r", encoding=file_encoding, errors="replace") as f:
-                log_text = f.read()
-
-        # Append stdout/stderr
-        if stdout:
-            log_text += "\n" + stdout.decode("utf-8", errors="replace")
-        if stderr:
-            log_text += "\n[STDERR]\n" + stderr.decode("utf-8", errors="replace")
-
-        if job:
-            job["status"] = "completed" if proc.returncode == 0 else "error"
-            job["log"] = log_text[-50000:]  # last 50k chars
-            job["returncode"] = proc.returncode
-            job["parsed"] = _parse_sas_log(log_text)
-
+        preview = sas_preview(in_path, rows=rows)
+        return preview
     except Exception as e:
-        if job:
-            job["status"] = "error"
-            job["log"] = f"执行异常: {str(e)}"
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": f"读取 SAS 数据失败: {str(e)}"}, status_code=400)
 
 
 # ── SPA Fallback (must be LAST route) ───────────────────────────────────────

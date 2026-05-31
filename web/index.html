@@ -22,7 +22,7 @@
       <a href="/toc" data-route="/toc">TOC 目录生成</a>
       <a href="/changes" data-route="/changes">修改痕迹跟踪</a>
       <a href="/creatinine" data-route="/creatinine">医学计算器</a>
-      <a href="/sas" data-route="/sas">SAS 程序运行器</a>
+      <a href="/saschart" data-route="/saschart">SAS 图表</a>
     </nav>
   </header>
   <main class="app-main" id="app-main">
@@ -98,16 +98,16 @@
         <p>批量计算 CrCl (Cockcroft-Gault) 和 eGFR (CKD-EPI 2021)</p>
         <span class="badge badge-web">Web</span>
       </a>
-      <a class="card" href="/sas" data-route="/sas">
+      <a class="card" href="/saschart" data-route="/saschart">
         <div class="card-icon"></div>
-        <h3>SAS 程序运行器</h3>
-        <p>上传 SAS 数据集，选择通用宏或粘贴自由代码，在线执行并查看日志</p>
-        <span class="badge badge-web">Web+SAS</span>
+        <h3>SAS 数据集图表</h3>
+        <p>上传 .sas7bdat 文件，选择列和图表类型，生成 Excel 图表</p>
+        <span class="badge badge-web">Web</span>
       </a>
     </div>
 
     <div class="status-bar" id="status-bar">
-      <span id="engine-status">CDM Engine v3.0 — Python + SAS + Web | localhost:8520</span>
+      <span id="engine-status">CDM Engine v3.0 — Python + Web | localhost:8520</span>
       <span id="spa-status" style="margin-left:16px;color:#999;font-size:11px;"></span>
     </div>
   </main>

@@ -1261,3 +1261,156 @@ def _copy_sheet(src, dst):
     # Copy merged cells
     for merge_range in src.merged_cells.ranges:
         dst.merge_cells(str(merge_range))
+
+
+# ============================================================
+# 22. SAS Dataset Charting
+# ============================================================
+def sas_to_dataframe(sas_path: str) -> "pd.DataFrame":
+    """Read a .sas7bdat file into a pandas DataFrame."""
+    import pandas as pd
+    try:
+        import pyreadstat
+        df, _ = pyreadstat.read_sas7bdat(sas_path, encoding="utf-8")
+        return df
+    except ImportError:
+        return pd.read_sas(sas_path, encoding="utf-8")
+
+
+def generate_chart_from_sas(
+    sas_path: str,
+    output_path: str,
+    chart_type: str = "bar",
+    x_col: str = "",
+    y_col: str = "",
+    group_col: str = "",
+    title: str = "SAS Data Chart",
+    max_rows: int = 1000,
+) -> str:
+    """
+    Read a SAS dataset and generate an Excel file with an embedded chart.
+
+    Parameters
+    ----------
+    sas_path : str — path to .sas7bdat file
+    output_path : str — where to save the .xlsx output
+    chart_type : str — "bar", "line", "pie", "scatter"
+    x_col : str — column for X axis / categories
+    y_col : str — column for Y axis / values
+    group_col : str — optional grouping column (creates multiple series)
+    title : str — chart title
+    max_rows : int — max rows to read (default 1000)
+
+    Returns
+    -------
+    str — path to the output .xlsx file
+    """
+    from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
+    from openpyxl.chart.series import DataPoint
+    from openpyxl.utils import get_column_letter
+
+    df = sas_to_dataframe(sas_path)
+    if len(df) > max_rows:
+        df = df.head(max_rows)
+
+    wb = Workbook()
+    ws_data = wb.active
+    ws_data.title = "Data"
+
+    # Select columns
+    cols = list(df.columns)
+    if x_col not in cols:
+        x_col = cols[0] if len(cols) > 0 else ""
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    if y_col not in numeric_cols:
+        y_col = numeric_cols[0] if numeric_cols else (cols[1] if len(cols) > 1 else x_col)
+
+    # Write headers + data
+    headers = [x_col, y_col] if not group_col else [x_col, group_col, y_col]
+    for ci, h in enumerate(headers, 1):
+        ws_data.cell(row=1, column=ci, value=h)
+        ws_data.cell(row=1, column=ci).font = HEADER_FONT
+        ws_data.cell(row=1, column=ci).fill = HEADER_FILL
+
+    for ri, (_, row) in enumerate(df.iterrows()):
+        for ci, h in enumerate(headers, 1):
+            val = row.get(h)
+            if isinstance(val, float) and (pd.isna(val) or pd.isna(val)):
+                val = None
+            ws_data.cell(row=ri + 2, column=ci, value=val)
+
+    n_rows = len(df) + 1
+
+    # Create chart
+    if chart_type == "bar":
+        chart = BarChart()
+    elif chart_type == "line":
+        chart = LineChart()
+    elif chart_type == "pie":
+        chart = PieChart()
+    elif chart_type == "scatter":
+        chart = ScatterChart()
+    else:
+        chart = BarChart()
+
+    chart.title = title
+    chart.style = 10
+    chart.y_axis.title = y_col
+    chart.x_axis.title = x_col
+
+    if chart_type == "pie":
+        data_ref = Reference(ws_data, min_col=2, min_row=1, max_row=n_rows)
+        cats_ref = Reference(ws_data, min_col=1, min_row=2, max_row=n_rows)
+        chart.add_data(data_ref, titles_from_data=True)
+        chart.set_categories(cats_ref)
+    else:
+        if group_col and group_col in cols:
+            # Multiple series by group
+            groups = df[group_col].dropna().unique()
+            col_offset = 3  # x, group, y → y starts at col 3
+            for gi, g in enumerate(groups[:10]):  # max 10 series
+                gdf = df[df[group_col] == g]
+                for ri, (_, row) in enumerate(gdf.iterrows()):
+                    ws_data.cell(row=ri + 2, column=col_offset + gi, value=row.get(y_col))
+                ws_data.cell(row=1, column=col_offset + gi, value=str(g))
+                ws_data.cell(row=1, column=col_offset + gi).font = HEADER_FONT
+                ws_data.cell(row=1, column=col_offset + gi).fill = HEADER_FILL
+                data_ref = Reference(ws_data, min_col=col_offset + gi, min_row=1, max_row=len(gdf) + 1)
+                chart.add_data(data_ref, titles_from_data=True)
+            cats_ref = Reference(ws_data, min_col=1, min_row=2, max_row=n_rows)
+            chart.set_categories(cats_ref)
+        else:
+            y_col_idx = 2
+            data_ref = Reference(ws_data, min_col=y_col_idx, min_row=1, max_row=n_rows)
+            cats_ref = Reference(ws_data, min_col=1, min_row=2, max_row=n_rows)
+            chart.add_data(data_ref, titles_from_data=True)
+            chart.set_categories(cats_ref)
+
+    # Add chart to a new sheet
+    ws_chart = wb.create_sheet("Chart")
+    ws_chart.add_chart(chart, "B2")
+
+    auto_width(ws_data)
+    wb.save(output_path)
+    return output_path
+
+
+def sas_preview(sas_path: str, rows: int = 100) -> dict:
+    """Preview a SAS dataset — return headers + first N rows as JSON."""
+    df = sas_to_dataframe(sas_path)
+    if len(df) > rows:
+        df = df.head(rows)
+    import pandas as pd
+    headers = list(df.columns)
+    data_rows = []
+    for _, row in df.iterrows():
+        data_rows.append([
+            str(v)[:200] if not (isinstance(v, float) and pd.isna(v)) else ""
+            for v in row
+        ])
+    return {
+        "headers": headers,
+        "rows": data_rows,
+        "total_rows": len(df),
+        "numeric_cols": df.select_dtypes(include=["number"]).columns.tolist(),
+    }
