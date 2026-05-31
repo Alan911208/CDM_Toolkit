@@ -2,10 +2,13 @@ import { showToast } from '../app.js';
 
 export default function render() {
   return `
-    <div class="page-section"><h2>📊 SAS 程序运行器</h2><p class="section-subtitle">选择宏程序 → 编辑参数 → 执行 → 查看日志</p></div>
+    <div class="page-section"><h2>📊 SAS 程序运行器</h2><p class="section-subtitle">左侧通用宏调用 / 右侧粘贴自由代码 → 执行 → 查看日志</p></div>
     <div class="sas-layout">
       <aside class="sas-sidebar" id="sas-sidebar">
-        <div class="sas-sidebar-header">SAS 宏程序列表</div>
+        <div class="sas-sidebar-header">通用 SAS 宏程序</div>
+        <div style="padding:8px 12px;border-bottom:1px solid var(--color-border);">
+          <button id="sas-free-mode" class="btn btn-outline" style="width:100%;font-size:12px;padding:6px;">📝 自由代码模式</button>
+        </div>
         <div id="sas-macro-list" style="padding:12px;">加载中...</div>
       </aside>
       <div class="sas-main">
@@ -14,12 +17,12 @@ export default function render() {
             <option value="zh">中文配置 (zh/SASV9.CFG)</option>
             <option value="u8">UTF-8 配置 (u8/SASV9.CFG)</option>
           </select>
-          <button id="sas-run-btn" class="btn btn-primary" disabled>▶ 执行 SAS 程序</button>
+          <button id="sas-run-btn" class="btn btn-primary">▶ 执行 SAS 程序</button>
           <span id="sas-status-badge" style="font-size:12px;color:#999;margin-left:12px;"></span>
         </div>
         <div id="sas-macro-info" style="padding:0 0 12px 0;font-size:13px;color:#666;min-height:20px;"></div>
         <div class="sas-editor-container">
-          <textarea id="sas-editor" class="sas-editor" placeholder="选择左侧宏程序加载代码..." spellcheck="false"></textarea>
+          <textarea id="sas-editor" class="sas-editor" placeholder="粘贴 SAS 代码，或点击左侧宏列表加载模板..." spellcheck="false"></textarea>
         </div>
         <div class="sas-log-header" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
           <h4 style="margin:0;">📋 SAS 日志输出</h4>
@@ -61,6 +64,23 @@ export async function init() {
   const logEl = document.getElementById('sas-log');
   const infoEl = document.getElementById('sas-macro-info');
   const statusBadge = document.getElementById('sas-status-badge');
+  const freeModeBtn = document.getElementById('sas-free-mode');
+
+  // Free code mode — deselect macro, enable direct editing
+  freeModeBtn.addEventListener('click', () => {
+    currentMacroId = null;
+    listEl.querySelectorAll('.sas-macro-item').forEach(b => b.classList.remove('active'));
+    editor.value = `/* ── 自由代码模式 ── 粘贴任意 SAS 程序 ── */
+/* ── 环境设置 ── */
+%let _srcPath = %sysfunc(pathname(work));
+%let _tgtPath = %sysfunc(pathname(work));
+%let _tmpPath = %sysfunc(pathname(work));
+
+`;
+    infoEl.innerHTML = '<strong>📝 自由代码模式</strong> — 粘贴你的 SAS 业务逻辑程序，点击执行';
+    logEl.textContent = '就绪 — 粘贴代码后点击"执行 SAS 程序"';
+    editor.focus();
+  });
 
   // Load macro list
   let macros = [];
@@ -106,7 +126,6 @@ export async function init() {
 
     // Load macro source
     editor.value = '加载中...';
-    runBtn.disabled = true;
     infoEl.textContent = '';
 
     try {
@@ -148,7 +167,6 @@ export async function init() {
       }
 
       editor.value = code;
-      runBtn.disabled = false;
       logEl.textContent = '准备就绪 — 修改参数后点击"执行 SAS 程序"';
     } catch (err) {
       editor.value = `/* 加载失败: ${err.message} */`;
@@ -161,7 +179,6 @@ export async function init() {
     if (!code) { showToast('请先加载或输入 SAS 代码', 'error'); return; }
 
     const config = document.getElementById('sas-config').value;
-    runBtn.disabled = true;
     runBtn.textContent = '⏳ 执行中...';
     logEl.textContent = '提交 SAS 任务...';
     statusBadge.textContent = '';
@@ -175,7 +192,7 @@ export async function init() {
       const data = await res.json();
       if (data.error) {
         logEl.textContent = `❌ ${data.error}`;
-        runBtn.disabled = false;
+        // button stays enabled for free code mode
         runBtn.textContent = '▶ 执行 SAS 程序';
         return;
       }
@@ -198,7 +215,6 @@ export async function init() {
             pollTimer = null;
             const elapsed = sj.elapsed || 0;
             statusBadge.textContent = `✅ 完成 (${elapsed}秒)`;
-            runBtn.disabled = false;
             runBtn.textContent = '▶ 执行 SAS 程序';
             logEl.textContent += `\n\n/* ══ SAS 执行完成 (${elapsed}秒) ══ */`;
             // Show workspace hint
@@ -208,21 +224,21 @@ export async function init() {
             clearInterval(pollTimer);
             pollTimer = null;
             statusBadge.textContent = `❌ 错误`;
-            runBtn.disabled = false;
+            // button stays enabled for free code mode
             runBtn.textContent = '▶ 执行 SAS 程序';
             logEl.textContent += '\n\n/* ══ SAS 执行出错 ══ */';
           } else if (sj.status === 'timeout') {
             clearInterval(pollTimer);
             pollTimer = null;
             statusBadge.textContent = `⏰ 超时`;
-            runBtn.disabled = false;
+            // button stays enabled for free code mode
             runBtn.textContent = '▶ 执行 SAS 程序';
           }
         } catch (_) { /* polling error, ignore */ }
       }, 1000);
     } catch (err) {
       logEl.textContent = `❌ 请求失败: ${err.message}`;
-      runBtn.disabled = false;
+      // button stays enabled for free code mode
       runBtn.textContent = '▶ 执行 SAS 程序';
     }
   });
