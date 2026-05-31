@@ -1035,6 +1035,94 @@ async def api_pdf_extract_table(
     return FileResponse(zip_path, filename="pdf_tables.zip", media_type="application/zip")
 
 
+# ── SAS Batch to Excel ───────────────────────────────────────────────────
+
+
+@app.post("/api/sas-batch-to-xlsx")
+async def api_sas_batch_to_xlsx(
+    files: list[UploadFile] = File(...),
+):
+    """Convert multiple SAS datasets to Excel with formatted headers: 变量名(label)."""
+    import zipfile
+    import pandas as pd
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    tmp_out = tempfile.mkdtemp()
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    xlsx_files = []
+
+    for f in files:
+        fname = f.filename or "dataset.sas7bdat"
+        base = os.path.splitext(fname)[0]
+        in_path = os.path.join(tempfile.mkdtemp(), fname)
+        with open(in_path, "wb") as out:
+            out.write(f.file.read())
+
+        try:
+            import pyreadstat
+            df, meta = pyreadstat.read_sas7bdat(in_path, encoding="gbk")
+        except Exception:
+            try:
+                df, meta = pyreadstat.read_sas7bdat(in_path, encoding="utf-8")
+            except Exception:
+                df = pd.read_sas(in_path, encoding="utf-8")
+                meta = None
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = base[:31]
+
+        # Header row: 变量名(label)
+        for ci, col in enumerate(df.columns, 1):
+            label = ""
+            if meta and hasattr(meta, 'column_labels'):
+                labels = meta.column_labels
+                idx = list(df.columns).index(col) if col in df.columns else ci - 1
+                if idx < len(labels) and labels[idx] and str(labels[idx]).strip():
+                    label = str(labels[idx]).strip()
+            header = f"{col}({label})" if label else str(col)
+            cell = ws.cell(row=1, column=ci, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+
+        # Data rows
+        for ri, (_, row) in enumerate(df.iterrows()):
+            for ci, col in enumerate(df.columns, 1):
+                val = row[col]
+                if isinstance(val, float) and pd.isna(val):
+                    val = None
+                ws.cell(row=ri + 2, column=ci, value=val)
+
+        # Auto-width
+        for col_cells in ws.columns:
+            col_letter = get_column_letter(col_cells[0].column)
+            max_len = 0
+            for cell in col_cells[:50]:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 40)
+
+        xlsx_path = os.path.join(tmp_out, f"{base}.xlsx")
+        wb.save(xlsx_path)
+        xlsx_files.append(xlsx_path)
+
+    if not xlsx_files:
+        return {"error": "转换失败"}
+
+    if len(xlsx_files) == 1:
+        return FileResponse(xlsx_files[0], filename=os.path.basename(xlsx_files[0]),
+                            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    zip_path = os.path.join(tmp_out, "sas_to_excel.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for xf in xlsx_files:
+            zf.write(xf, os.path.basename(xf))
+    return FileResponse(zip_path, filename="sas_to_excel.zip", media_type="application/zip")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
