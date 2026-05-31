@@ -991,6 +991,50 @@ async def api_pdf_rotate(
     return FileResponse(out_path, filename=f"{base}_rotated.pdf", media_type="application/pdf")
 
 
+# ── PDF Table Extraction ─────────────────────────────────────────────────
+
+
+@app.post("/api/pdf-extract-table")
+async def api_pdf_extract_table(
+    file: UploadFile = File(...),
+):
+    """Extract tables from PDF pages and return as Excel file."""
+    import zipfile
+    import pandas as pd
+    import pdfplumber
+
+    in_path = os.path.join(tempfile.mkdtemp(), file.filename or "input.pdf")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+
+    base = os.path.splitext(file.filename or "document")[0]
+    tmp_out = tempfile.mkdtemp()
+    excel_files = []
+
+    with pdfplumber.open(in_path) as pdf:
+        for pi, page in enumerate(pdf.pages):
+            table = page.extract_table()
+            if table and len(table) > 1:
+                df = pd.DataFrame(table[1:], columns=table[0])
+                xlsx_name = f"{base}_page_{str(pi+1).zfill(4)}.xlsx"
+                xlsx_path = os.path.join(tmp_out, xlsx_name)
+                df.to_excel(xlsx_path, index=False)
+                excel_files.append(xlsx_path)
+
+    if not excel_files:
+        return {"error": "未在 PDF 中检测到表格"}
+
+    if len(excel_files) == 1:
+        return FileResponse(excel_files[0], filename=os.path.basename(excel_files[0]),
+                            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    zip_path = os.path.join(tmp_out, "pdf_tables.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for xf in excel_files:
+            zf.write(xf, os.path.basename(xf))
+    return FileResponse(zip_path, filename="pdf_tables.zip", media_type="application/zip")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
