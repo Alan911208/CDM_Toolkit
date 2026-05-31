@@ -1140,6 +1140,37 @@ async def api_sas_batch_to_xlsx(
     return FileResponse(zip_path, filename="sas_to_excel.zip", media_type="application/zip")
 
 
+# ── Dataset Comparison ───────────────────────────────────────────────────
+
+
+@app.post("/api/compare-datasets")
+async def api_compare_datasets(
+    old_files: list[UploadFile] = File(...),
+    new_files: list[UploadFile] = File(...),
+    key_vars: str = Form(""),
+):
+    """Compare two batches of SAS datasets and generate a comparison report."""
+    from cdm_engine import compare_datasets
+
+    old_dir = tempfile.mkdtemp()
+    new_dir = tempfile.mkdtemp()
+    for f in old_files:
+        with open(os.path.join(old_dir, f.filename or "old.sas7bdat"), "wb") as out:
+            out.write(f.file.read())
+    for f in new_files:
+        with open(os.path.join(new_dir, f.filename or "new.sas7bdat"), "wb") as out:
+            out.write(f.file.read())
+
+    out_path = os.path.join(tempfile.mkdtemp(), "comparison_report.xlsx")
+    try:
+        compare_datasets(old_dir, new_dir, key_vars=key_vars, output_path=out_path)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    return FileResponse(out_path, filename="comparison_report.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 

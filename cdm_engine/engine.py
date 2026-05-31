@@ -1493,3 +1493,221 @@ def scan_sas_metadata(sas_path: str) -> dict:
             "complete_vars": sum(1 for v in variables if v["missing"] == 0),
         },
     }
+
+
+# ============================================================
+# 24. Dataset Comparison Engine
+# ============================================================
+def compare_datasets(
+    old_dir: str,
+    new_dir: str,
+    key_vars: str = "",
+    output_path: str = "",
+) -> str:
+    """
+    Compare two batches of SAS datasets (old vs new) and generate an Excel report.
+
+    For each dataset pair (matched by filename without extension):
+    - Schema changes: added/removed variables
+    - Row counts: old vs new
+    - Row-level changes: added, removed, modified rows (by key_vars)
+    - Value-level changes: per-variable modification counts
+
+    Outputs an Excel workbook with:
+    - 'Overview' sheet: summary of all dataset comparisons
+    - 'Per-dataset' sheets: detailed variable/row diffs
+    """
+    import pandas as pd
+    import os as _os
+    from openpyxl import Workbook
+    from openpyxl.styles import Font as OpFont, PatternFill as OpFill
+    from openpyxl.utils import get_column_letter as _gcl
+
+    if not output_path:
+        output_path = _os.path.join(tempfile.mkdtemp(), "comparison_report.xlsx")
+
+    # Gather datasets
+    old_files = {}
+    new_files = {}
+    for f in _os.listdir(old_dir):
+        if f.lower().endswith(".sas7bdat"):
+            old_files[_os.path.splitext(f)[0].lower()] = _os.path.join(old_dir, f)
+    for f in _os.listdir(new_dir):
+        if f.lower().endswith(".sas7bdat"):
+            new_files[_os.path.splitext(f)[0].lower()] = _os.path.join(new_dir, f)
+
+    all_names = sorted(set(old_files.keys()) | set(new_files.keys()))
+    if not all_names:
+        raise ValueError("未找到任何 .sas7bdat 文件")
+
+    key_list = [k.strip() for k in key_vars.split(",") if k.strip()] if key_vars else []
+
+    wb = Workbook()
+    ws_overview = wb.active
+    ws_overview.title = "Overview"
+
+    # Styles
+    hdr_fill = OpFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    hdr_font = OpFont(color="FFFFFF", bold=True, size=11)
+    grn_fill = OpFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    red_fill = OpFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    yel_fill = OpFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+
+    # Overview headers
+    ov_headers = ["Dataset", "Status", "Old Rows", "New Rows", "Row Diff",
+                  "Added Vars", "Removed Vars", "Modified Vars",
+                  "Added Rows", "Removed Rows", "Modified Rows", "Remarks"]
+    for ci, h in enumerate(ov_headers, 1):
+        c = ws_overview.cell(row=1, column=ci, value=h)
+        c.font = hdr_font; c.fill = hdr_fill
+
+    overview_row = 2
+    summary_counts = {"matched": 0, "only_old": 0, "only_new": 0, "identical": 0, "changed": 0}
+
+    for name in all_names:
+        in_old = name in old_files
+        in_new = name in new_files
+
+        if not in_old:
+            ws_overview.cell(row=overview_row, column=1, value=name)
+            ws_overview.cell(row=overview_row, column=2, value="仅新版本")
+            ws_overview.cell(row=overview_row, column=2).fill = grn_fill
+            overview_row += 1
+            summary_counts["only_new"] += 1
+            continue
+        if not in_new:
+            ws_overview.cell(row=overview_row, column=1, value=name)
+            ws_overview.cell(row=overview_row, column=2, value="仅旧版本")
+            ws_overview.cell(row=overview_row, column=2).fill = red_fill
+            overview_row += 1
+            summary_counts["only_old"] += 1
+            continue
+
+        summary_counts["matched"] += 1
+
+        # Read both datasets
+        df_old = sas_to_dataframe(old_files[name])
+        df_new = sas_to_dataframe(new_files[name])
+        old_cols = set(df_old.columns)
+        new_cols = set(df_new.columns)
+        added_vars = sorted(new_cols - old_cols)
+        removed_vars = sorted(old_cols - new_cols)
+        common_vars = sorted(old_cols & new_cols)
+        modified_vars = []
+
+        # Check value changes in common columns
+        for col in common_vars:
+            if col in df_old.columns and col in df_new.columns:
+                old_null = df_old[col].isna().sum()
+                new_null = df_new[col].isna().sum()
+                if old_null != new_null:
+                    modified_vars.append(f"{col}(null:{old_null}→{new_null})")
+
+        # Row-level comparison with key variables
+        added_rows = removed_rows = modified_rows = 0
+
+        if key_list and all(k in df_old.columns and k in df_new.columns for k in key_list):
+            old_keys = df_old[key_list].astype(str).agg("|".join, axis=1)
+            new_keys = df_new[key_list].astype(str).agg("|".join, axis=1)
+            old_set = set(old_keys)
+            new_set = set(new_keys)
+
+            added_rows = len(new_set - old_set)
+            removed_rows = len(old_set - new_set)
+
+            common_keys = old_set & new_set
+            if common_keys:
+                df_old_idx = df_old.set_index(key_list).sort_index()
+                df_new_idx = df_new.set_index(key_list).sort_index()
+                common_old = df_old_idx.loc[df_old_idx.index.isin(common_keys)]
+                common_new = df_new_idx.loc[df_new_idx.index.isin(common_keys)]
+                # Align and compare
+                for col in common_vars:
+                    if col in common_old.columns and col in common_new.columns:
+                        diff_mask = common_old[col].fillna("__NA__") != common_new[col].fillna("__NA__")
+                        if diff_mask.any():
+                            modified_vars.append(f"{col}({diff_mask.sum()}改)")
+                modified_rows = int((common_old.fillna("__NA__").values != common_new.fillna("__NA__").values).any(axis=1).sum())
+        else:
+            # Simple row count comparison
+            if len(df_old) != len(df_new):
+                modified_rows = abs(len(df_new) - len(df_old))
+
+        is_identical = (not added_vars and not removed_vars and not added_rows and
+                        not removed_rows and not modified_rows and
+                        len(df_old) == len(df_new))
+        if is_identical:
+            summary_counts["identical"] += 1
+        else:
+            summary_counts["changed"] += 1
+
+        status = "一致" if is_identical else "有差异"
+        remarks = ""
+        if not is_identical:
+            parts = []
+            if added_vars: parts.append(f"+{len(added_vars)}变量")
+            if removed_vars: parts.append(f"-{len(removed_vars)}变量")
+            if added_rows: parts.append(f"+{added_rows}行")
+            if removed_rows: parts.append(f"-{removed_rows}行")
+            if modified_rows: parts.append(f"~{modified_rows}行")
+            remarks = ", ".join(parts)
+
+        # Write overview row
+        row_data = [name, status, len(df_old), len(df_new),
+                    len(df_new) - len(df_old),
+                    len(added_vars), len(removed_vars),
+                    len(modified_vars),
+                    added_rows, removed_rows, modified_rows, remarks]
+        for ci, val in enumerate(row_data, 1):
+            c = ws_overview.cell(row=overview_row, column=ci, value=val)
+            if is_identical:
+                c.fill = grn_fill
+        overview_row += 1
+
+        # Per-dataset detail sheet (only if changed)
+        if not is_identical:
+            ws_name = name[:31]
+            ws_detail = wb.create_sheet(ws_name)
+
+            # Variable section
+            ws_detail.cell(row=1, column=1, value=f"Dataset: {name}").font = OpFont(bold=True)
+            r = 3
+            ws_detail.cell(row=r, column=1, value="Schema Changes").font = OpFont(bold=True)
+            r += 1
+            for ci, h in enumerate(["Change", "Variable"], 1):
+                c = ws_detail.cell(row=r, column=ci, value=h); c.font = hdr_font; c.fill = hdr_fill
+            r += 1
+            for v in added_vars:
+                ws_detail.cell(row=r, column=1, value="Added").fill = grn_fill
+                ws_detail.cell(row=r, column=2, value=v)
+                r += 1
+            for v in removed_vars:
+                ws_detail.cell(row=r, column=1, value="Removed").fill = red_fill
+                ws_detail.cell(row=r, column=2, value=v)
+                r += 1
+
+            # Row summary
+            r += 1
+            ws_detail.cell(row=r, column=1, value="Row Changes").font = OpFont(bold=True)
+            r += 1
+            for ci, h in enumerate(["Type", "Count"], 1):
+                c = ws_detail.cell(row=r, column=ci, value=h); c.font = hdr_font; c.fill = hdr_fill
+            r += 1
+            for label, count, fill in [("Added Rows", added_rows, grn_fill),
+                                        ("Removed Rows", removed_rows, red_fill),
+                                        ("Modified Rows", modified_rows, yel_fill)]:
+                ws_detail.cell(row=r, column=1, value=label).fill = fill
+                ws_detail.cell(row=r, column=2, value=count)
+                r += 1
+
+            for col in range(1, 3):
+                ws_detail.column_dimensions[_gcl(col)].width = 30
+
+    # Auto-width overview
+    for col_cells in ws_overview.columns:
+        cl = _gcl(col_cells[0].column)
+        mx = max((len(str(c.value or "")) for c in col_cells[:overview_row]), default=10)
+        ws_overview.column_dimensions[cl].width = min(mx + 4, 50)
+
+    wb.save(output_path)
+    return output_path
