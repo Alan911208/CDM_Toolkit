@@ -469,6 +469,54 @@ async def ws_download(request: Request):
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+# ── SAS Dataset Upload ────────────────────────────────────────────────────
+
+
+@app.post("/api/sas/upload-datasets")
+async def sas_upload_datasets(request: Request, files: list[UploadFile] = File(...)):
+    """Upload SAS datasets (.sas7bdat) to the session workspace for SAS macros to use."""
+    _cleanup_workspaces()
+    ws = _get_workspace(request)
+    ds_dir = os.path.join(ws["dir"], "datasets")
+    os.makedirs(ds_dir, exist_ok=True)
+
+    uploaded = []
+    for f in files:
+        fname = f.filename or "dataset.sas7bdat"
+        fpath = os.path.join(ds_dir, fname)
+        with open(fpath, "wb") as out:
+            out.write(f.file.read())
+        size_kb = os.path.getsize(fpath) / 1024
+        uploaded.append({"name": fname, "size_kb": round(size_kb, 1)})
+
+    return {"uploaded": uploaded, "datasets": _list_sas_datasets(ds_dir),
+            "libname_path": ds_dir.replace("\\", "/")}
+
+
+@app.get("/api/sas/datasets")
+async def sas_list_datasets(request: Request):
+    """List uploaded SAS datasets in the session workspace."""
+    ws = _get_workspace(request)
+    ds_dir = os.path.join(ws["dir"], "datasets")
+    os.makedirs(ds_dir, exist_ok=True)
+    return {"datasets": _list_sas_datasets(ds_dir),
+            "libname_path": ds_dir.replace("\\", "/")}
+
+
+def _list_sas_datasets(ds_dir: str) -> list[dict]:
+    """List .sas7bdat files in a directory."""
+    datasets = []
+    if os.path.isdir(ds_dir):
+        for f in sorted(os.listdir(ds_dir)):
+            if f.lower().endswith(".sas7bdat"):
+                fpath = os.path.join(ds_dir, f)
+                datasets.append({
+                    "name": f,
+                    "size_kb": round(os.path.getsize(fpath) / 1024, 1),
+                })
+    return datasets
+
+
 # ── Strikethrough ─────────────────────────────────────────────────────────
 
 
