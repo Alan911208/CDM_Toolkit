@@ -966,6 +966,31 @@ async def api_pdf_merge(
             except: pass
 
 
+# ── PDF Rotate ───────────────────────────────────────────────────────────
+
+
+@app.post("/api/pdf-rotate")
+async def api_pdf_rotate(
+    file: UploadFile = File(...),
+    angle: int = Form(90),
+):
+    """Rotate all pages in a PDF by a given angle (90/180/270)."""
+    from PyPDF2 import PdfReader, PdfWriter
+
+    reader = PdfReader(file.file)
+    writer = PdfWriter()
+    for page in reader.pages:
+        page.rotate(angle)
+        writer.add_page(page)
+
+    out_path = os.path.join(tempfile.mkdtemp(), "rotated.pdf")
+    with open(out_path, "wb") as f:
+        writer.write(f)
+
+    base = os.path.splitext(file.filename or "document")[0]
+    return FileResponse(out_path, filename=f"{base}_rotated.pdf", media_type="application/pdf")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
