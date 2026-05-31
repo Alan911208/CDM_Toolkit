@@ -1267,14 +1267,36 @@ def _copy_sheet(src, dst):
 # 22. SAS Dataset Charting
 # ============================================================
 def sas_to_dataframe(sas_path: str) -> "pd.DataFrame":
-    """Read a .sas7bdat file into a pandas DataFrame."""
+    """Read a .sas7bdat file into a pandas DataFrame. Tries multiple encodings."""
     import pandas as pd
+
+    # Check if pyreadstat is available (better SAS reader)
     try:
-        import pyreadstat
-        df, _ = pyreadstat.read_sas7bdat(sas_path, encoding="utf-8")
-        return df
+        import pyreadstat as _prs
+        _has_pyreadstat = True
     except ImportError:
-        return pd.read_sas(sas_path, encoding="utf-8")
+        _has_pyreadstat = False
+
+    # Encodings to try (Chinese SAS data is often GBK, not UTF-8)
+    ENCODINGS = ("utf-8", "gbk", "gb2312", "gb18030", "latin-1")
+
+    if _has_pyreadstat:
+        for enc in ENCODINGS:
+            try:
+                df, _ = _prs.read_sas7bdat(sas_path, encoding=enc)
+                return df
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+    # Fallback: pandas built-in SAS reader
+    for enc in ENCODINGS:
+        try:
+            return pd.read_sas(sas_path, encoding=enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+
+    # Last resort
+    return pd.read_sas(sas_path, encoding=None)
 
 
 def generate_chart_from_sas(
