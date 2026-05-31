@@ -6,8 +6,6 @@ import './components/file-upload.js';
 import './components/progress-bar.js';
 import './components/data-table.js';
 import './components/folder-tree.js';
-import './components/workspace.js';
-import './components/pipeline-nav.js';
 
 const ROUTES = {
   '/':       { title: '仪表盘', loader: null },
@@ -61,24 +59,6 @@ function updateNav(route) {
 }
 
 // ---- Toast ----
-// ---- Workspace helper ----
-window._cdmUploadToWorkspace = async function(blob, filename) {
-  const sid = localStorage.getItem('cdm_session') || '';
-  const fd = new FormData();
-  fd.append('file', new File([blob], filename || 'result.xlsx'));
-  try {
-    const res = await fetch('/api/workspace/upload', {
-      method: 'POST',
-      headers: { 'X-CDM-Session': sid },
-      body: fd,
-    });
-    const data = await res.json();
-    if (data.session_id) localStorage.setItem('cdm_session', data.session_id);
-    // Refresh workspace panel if visible
-    document.querySelectorAll('workspace-panel').forEach(p => p.refresh());
-  } catch (_) {}
-};
-
 export function showToast(message, type) {
   type = type || 'success';
   var t = document.createElement('div');

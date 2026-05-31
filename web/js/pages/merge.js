@@ -1,14 +1,14 @@
 import { api, showToast } from '../app.js';
 
 export default function render() {
-  return `<workspace-panel></workspace-panel>
+  return `
     <div class="page-section"><h2>📑 工作簿合并</h2><p class="section-subtitle">将多个 Excel 文件合并为一个工作簿</p></div>
     <file-upload multiple accept=".xlsx,.xls"></file-upload>
     <div class="form-row mt-16"><div class="form-group"><label><input type="checkbox" id="merge-toc" checked> 自动生成 TOC 目录</label></div><div class="form-group"><label><input type="checkbox" id="merge-prefix" checked> 文件名作为 sheet 前缀</label></div></div>
     <button id="merge-btn" class="btn btn-primary" disabled>▶ 开始合并</button>
     <progress-bar id="merge-progress" style="display:none;"></progress-bar>
     <div id="merge-result" style="margin-top:16px;"></div>
-    <pipeline-nav context="merge"></pipeline-nav>`;
+    `;
 }
 
 export async function init() {
@@ -33,9 +33,7 @@ export async function init() {
       const a = document.createElement('a'); a.href = url; a.download = 'merged.xlsx'; a.click();
       URL.revokeObjectURL(url);
       progress.setProgress(100, '合并完成！');
-      resultDiv.innerHTML = '<p style="color:#2E7D32;padding:8px;">✅ 文件合并成功 — 已加入工作区预览</p>';
       showToast('文件合并成功');
-      window._cdmUploadToWorkspace(blob, 'merged.xlsx');
     } catch (err) { progress.setProgress(0, `失败: ${err.message}`); showToast(`合并失败: ${err.message}`, 'error'); }
     finally { btn.disabled = false; }
   });

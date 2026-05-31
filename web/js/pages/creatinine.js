@@ -25,7 +25,7 @@ const FORMULAS = {
 };
 
 export default function render() {
-  return `<workspace-panel></workspace-panel>
+  return `
     <div class="page-section"><h2>🩺 医学计算器</h2><p class="section-subtitle">批量临床计算 — 支持 9 种常用公式</p></div>
     <file-upload accept=".xlsx,.xls"></file-upload>
     <div class="form-row mt-16"><div class="form-group" style="flex:2;"><label for="crcl-method">计算公式</label><select id="crcl-method">${METHODS.map(m => `<option value="${m.id}">${m.name} — ${m.desc}</option>`).join('')}</select></div><div class="form-group"><label for="crcl-row-start">数据起始行</label><input type="number" id="crcl-row-start" value="2" min="1" max="100"></div></div>
@@ -34,7 +34,7 @@ export default function render() {
     <button id="crcl-btn" class="btn btn-primary" disabled>▶ 执行计算</button>
     <progress-bar id="crcl-progress" style="display:none;"></progress-bar>
     <div id="crcl-result" style="margin-top:16px;"></div>
-    <pipeline-nav context="medical"></pipeline-nav>`;
+    `;
 }
 
 export async function init() {
@@ -62,8 +62,6 @@ export async function init() {
     try {
       const res = await api('/api/medical-calc', fd); const blob = await res.blob();
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = method.toLowerCase()+'_result.xlsx'; a.click(); URL.revokeObjectURL(url);
-      progress.setProgress(100, '计算完成！'); resultDiv.innerHTML = '<p style="color:#2E7D32;padding:8px;">✅ 计算完成 — 已加入工作区预览</p>';
-      showToast('医学计算完成'); window._cdmUploadToWorkspace(blob, method.toLowerCase()+'_result.xlsx');
     } catch (err) { progress.setProgress(0, `失败: ${err.message}`); showToast(err.message, 'error'); }
     finally { btn.disabled = false; }
   });

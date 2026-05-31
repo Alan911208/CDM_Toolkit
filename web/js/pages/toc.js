@@ -1,7 +1,7 @@
 import { api, showToast } from '../app.js';
 
 export default function render() {
-  return `<workspace-panel></workspace-panel>
+  return `
     <div class="page-section"><h2>📑 TOC 目录生成</h2><p class="section-subtitle">为工作簿生成带超链接的目录页（标准版 / SAS Derive 版）</p></div>
     <file-upload accept=".xlsx,.xls"></file-upload>
     <div class="form-row mt-16">
@@ -11,7 +11,7 @@ export default function render() {
     <button id="toc-btn" class="btn btn-primary" disabled>▶ 生成目录</button>
     <progress-bar id="toc-progress" style="display:none;"></progress-bar>
     <div id="toc-result" style="margin-top:16px;"></div>
-    <pipeline-nav context="toc"></pipeline-nav>`;
+    `;
 }
 
 export async function init() {
@@ -26,8 +26,6 @@ export async function init() {
     try {
       const res = await api('/api/toc', fd); const blob = await res.blob();
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'toc_result.xlsx'; a.click(); URL.revokeObjectURL(url);
-      progress.setProgress(100, '目录生成完成！'); resultDiv.innerHTML = '<p style="color:#2E7D32;padding:8px;">✅ TOC 目录已生成 — 已加入工作区预览</p>';
-      showToast('TOC 目录已生成'); window._cdmUploadToWorkspace(blob, 'toc_result.xlsx');
     } catch (err) { progress.setProgress(0, `失败: ${err.message}`); showToast(err.message, 'error'); }
     finally { btn.disabled = false; }
   });
