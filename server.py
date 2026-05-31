@@ -802,6 +802,79 @@ async def api_explorer_scan(
         return JSONResponse({"error": f"扫描失败: {str(e)}"}, status_code=400)
 
 
+# ── DOCX to PDF Batch Converter ──────────────────────────────────────────
+
+
+@app.post("/api/docx2pdf")
+async def api_docx_to_pdf(
+    files: list[UploadFile] = File(...),
+):
+    """Convert uploaded .docx/.doc/.rtf files to PDF via Word COM."""
+    import zipfile
+    from win32com.client import DispatchEx
+
+    tmp_in = tempfile.mkdtemp()
+    tmp_out = tempfile.mkdtemp()
+    results = []
+
+    # Save uploaded files
+    for f in files:
+        fname = f.filename or "document.docx"
+        in_path = os.path.join(tmp_in, fname)
+        with open(in_path, "wb") as out:
+            out.write(f.file.read())
+
+    # Get all doc files recursively
+    doc_exts = {".docx", ".doc", ".rtf"}
+    all_files = []
+    for root, _, filenames in os.walk(tmp_in):
+        for fn in filenames:
+            if fn.startswith("$"):
+                continue
+            if os.path.splitext(fn)[1].lower() in doc_exts:
+                all_files.append(os.path.join(root, fn))
+
+    if not all_files:
+        return {"error": "未找到 .docx/.doc/.rtf 文件"}
+
+    word_app = DispatchEx("Word.Application")
+    word_app.Visible = False
+    word_app.DisplayAlerts = 0
+
+    try:
+        for docx_path in all_files:
+            original_mtime = os.path.getmtime(docx_path)
+            base = os.path.splitext(os.path.basename(docx_path))[0]
+            pdf_path = os.path.join(tmp_out, f"{base}.pdf")
+
+            try:
+                doc = word_app.Documents.Open(docx_path, ReadOnly=True)
+                doc.SaveAs(pdf_path, FileFormat=17)
+                doc.Close(SaveChanges=0)
+                results.append({"file": f"{base}.pdf", "status": "ok"})
+            except Exception as e:
+                results.append({"file": f"{base}.pdf", "status": "error", "error": str(e)})
+
+            os.utime(docx_path, (original_mtime, original_mtime))
+    finally:
+        word_app.Quit()
+
+    # If only one file, return directly; otherwise zip
+    pdf_files = [os.path.join(tmp_out, r["file"]) for r in results if r["status"] == "ok"]
+    if len(pdf_files) == 1:
+        return FileResponse(pdf_files[0], filename=os.path.basename(pdf_files[0]),
+                            media_type="application/pdf")
+    elif len(pdf_files) > 1:
+        zip_path = os.path.join(tmp_out, "pdf_output.zip")
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            for pf in pdf_files:
+                zf.write(pf, os.path.basename(pf))
+        return FileResponse(zip_path, filename="pdf_output.zip",
+                            media_type="application/zip")
+
+    return {"error": "所有文件转换失败", "results": results}
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
