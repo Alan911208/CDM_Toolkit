@@ -8,7 +8,7 @@ export default function render() {
     </div>
     <div class="form-row mt-16">
       <div class="form-group"><label for="cmp-key">Key 变量（逗号分隔）</label><input type="text" id="cmp-key" placeholder="USUBJID,Visit"></div>
-      <div class="form-group" style="align-self:flex-end;padding-bottom:16px;"><button id="cmp-btn" class="btn btn-primary" disabled>▶ 开始比较</button></div>
+      <div class="form-group" style="align-self:flex-end;padding-bottom:16px;display:flex;gap:8px;"><button id="cmp-clear" class="btn btn-outline" style="font-size:12px;">🗑 清空</button><button id="cmp-btn" class="btn btn-primary" disabled>▶ 开始比较</button></div>
     </div>
     <progress-bar id="cmp-progress" style="display:none;"></progress-bar>
     <div id="cmp-result" style="margin-top:16px;"></div>`;
@@ -21,6 +21,17 @@ export async function init() {
 
   function check() { btn.disabled = !(oldUp.files.length && newUp.files.length); }
   oldUp.addEventListener('files-changed', check); newUp.addEventListener('files-changed', check);
+
+  function clearUpload(el) {
+    el.files = [];
+    el.updateFileList();
+    el.dispatchEvent(new CustomEvent('files-changed', { detail: { files: [] }, bubbles: true }));
+  }
+  document.getElementById('cmp-clear').addEventListener('click', () => {
+    clearUpload(oldUp); clearUpload(newUp);
+    resultDiv.innerHTML = '';
+    showToast('已清空所有数据集');
+  });
 
   btn.addEventListener('click', async () => {
     const fd = new FormData();
