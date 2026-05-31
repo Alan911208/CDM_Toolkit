@@ -20,54 +20,93 @@ export async function init() {
   async function load(path) {
     currentPath = path;
     treeEl.innerHTML = '<span style="color:#888;">加载中...</span>';
-    const url = '/api/file-tree' + (path ? '?path=' + encodeURIComponent(path) : '');
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.error) { treeEl.innerHTML = `<span style="color:#C62828;">${data.error}</span>`; return; }
+    try {
+      const url = '/api/file-tree' + (path ? '?path=' + encodeURIComponent(path) : '');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.error) { treeEl.innerHTML = '<span style="color:#C62828;">' + data.error + '</span>'; return; }
 
-    // Breadcrumb
-    const parts = path ? path.split('\\').filter(Boolean) : [];
-    breadEl.innerHTML = parts.map((p, i) => {
-      const pp = parts.slice(0, i + 1).join('\\') + '\\';
-      return `<a href="#" data-path="${pp}" style="color:var(--color-primary);">${p}</a>`;
-    }).join(' › ') || '我的电脑';
+      // Breadcrumb
+      const parts = path ? path.split('\\').filter(Boolean) : [];
+      breadEl.innerHTML = '';
+      if (parts.length === 0) {
+        breadEl.textContent = '我的电脑';
+      } else {
+        parts.forEach((p, i) => {
+          const pp = parts.slice(0, i + 1).join('\\') + '\\';
+          const a = document.createElement('a');
+          a.href = '#';
+          a.textContent = p;
+          a.style.cssText = 'color:var(--color-primary);text-decoration:none;';
+          a.addEventListener('click', e => { e.preventDefault(); load(pp); });
+          breadEl.appendChild(a);
+          if (i < parts.length - 1) {
+            breadEl.appendChild(document.createTextNode(' › '));
+          }
+        });
+      }
 
-    // Render
-    const dirs = data.items.filter(i => i.is_dir);
-    const files = data.items.filter(i => !i.is_dir);
-    let html = !path ? '<div style="color:#888;">📁 我的电脑</div>' : '';
-    dirs.forEach(d => html += `<div class="ft-item ft-dir" data-path="${d.path.replace(/\\/g,'\\\\')}">📁 <span>${d.name}</span></div>`);
-    files.forEach(f => html += `<div class="ft-file">📄 ${f.name} ${f.size ? '<span style="color:#666;">('+fmt(f.size)+')</span>' : ''}</div>`);
-    if (!dirs.length && !files.length) html += '<div style="color:#888;">空文件夹</div>';
-    treeEl.innerHTML = html;
+      // Tree
+      const dirs = data.items.filter(i => i.is_dir);
+      const files = data.items.filter(i => !i.is_dir);
+      treeEl.innerHTML = '';
+      if (!path) {
+        const hdr = document.createElement('div');
+        hdr.style.color = '#888';
+        hdr.textContent = '📁 我的电脑';
+        treeEl.appendChild(hdr);
+      }
+      dirs.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'ft-item ft-dir';
+        div.innerHTML = '📁 <span>' + esc(d.name) + '</span>';
+        div.addEventListener('click', () => load(d.path));
+        treeEl.appendChild(div);
+      });
+      files.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'ft-file';
+        const s = f.size ? '(' + fmt(f.size) + ')' : '';
+        div.textContent = '📄 ' + f.name + ' ' + s;
+        treeEl.appendChild(div);
+      });
+      if (!dirs.length && !files.length) {
+        const empty = document.createElement('div');
+        empty.style.color = '#888';
+        empty.textContent = '空文件夹';
+        treeEl.appendChild(empty);
+      }
 
-    treeEl.querySelectorAll('.ft-dir').forEach(el => {
-      el.addEventListener('click', () => load(el.dataset.path.replace(/\\\\/g, '\\')));
-    });
-    breadEl.querySelectorAll('a').forEach(a => {
-      a.addEventListener('click', e => { e.preventDefault(); load(a.dataset.path); });
-    });
-
-    infoEl.textContent = `${dirs.length} 文件夹, ${files.length} 文件`;
+      infoEl.textContent = dirs.length + ' 文件夹, ' + files.length + ' 文件';
+    } catch (err) {
+      treeEl.innerHTML = '<span style="color:#C62828;">加载失败: ' + esc(err.message) + '</span>';
+    }
   }
 
   document.getElementById('files-txt').addEventListener('click', async () => {
     if (!currentPath) { showToast('请先选择一个文件夹', 'error'); return; }
-    const fd = new FormData(); fd.append('path', currentPath);
-    const res = await fetch('/api/file-tree-txt', { method: 'POST', body: fd });
-    const text = await res.text();
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `file_tree_${new Date().toISOString().slice(0,10)}.txt`; a.click();
-    showToast('已下载');
+    try {
+      const fd = new FormData(); fd.append('path', currentPath);
+      const res = await fetch('/api/file-tree-txt', { method: 'POST', body: fd });
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'file_tree_' + new Date().toISOString().slice(0, 10) + '.txt';
+      a.click();
+      showToast('已下载');
+    } catch (err) {
+      showToast('下载失败: ' + err.message, 'error');
+    }
   });
 
   load('');
 }
 
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function fmt(b) {
   if (b < 1024) return b + ' B';
-  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
-  return (b/(1024*1024)).toFixed(1) + ' MB';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / (1024 * 1024)).toFixed(1) + ' MB';
 }
