@@ -1552,23 +1552,32 @@ def compare_datasets_summary(
         # Row-level with keys
         common_vars = sorted(old_cols & new_cols)
         if key_list and all(k in df_old.columns and k in df_new.columns for k in key_list):
-            old_keys = df_old[key_list].astype(str).agg("|".join, axis=1)
-            new_keys = df_new[key_list].astype(str).agg("|".join, axis=1)
-            entry["added_rows"] = int((~new_keys.isin(old_keys)).sum())
-            entry["removed_rows"] = int((~old_keys.isin(new_keys)).sum())
-            common = old_keys[old_keys.isin(new_keys)]
-            if len(common) > 0:
-                o = df_old.set_index(key_list).sort_index()
-                n = df_new.set_index(key_list).sort_index()
-                o_c = o.loc[o.index.isin(common)]
-                n_c = n.loc[n.index.isin(common)]
-                mods = []
-                for col in common_vars:
-                    if col in o_c.columns and col in n_c.columns:
-                        d = (o_c[col].fillna("__NA__") != n_c[col].fillna("__NA__")).sum()
-                        if d > 0: mods.append(f"{col}({d})")
-                entry["modified_vars"] = mods[:20]
-                entry["modified_rows"] = int((o_c.fillna("__NA__").values != n_c.fillna("__NA__").values).any(axis=1).sum())
+            # Use merge to handle duplicates safely
+            old_sub = df_old[key_list].astype(str).copy()
+            new_sub = df_new[key_list].astype(str).copy()
+            old_sub["_key"] = old_sub.agg("|".join, axis=1)
+            new_sub["_key"] = new_sub.agg("|".join, axis=1)
+            old_set = set(old_sub["_key"]); new_set = set(new_sub["_key"])
+            entry["added_rows"] = int(len(new_set - old_set))
+            entry["removed_rows"] = int(len(old_set - new_set))
+            common = old_set & new_set
+            if common:
+                # Compare common keys row-by-row via merge
+                df_old["_key"] = old_sub["_key"]
+                df_new["_key"] = new_sub["_key"]
+                o_c = df_old[df_old["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
+                n_c = df_new[df_new["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
+                # Only compare if row counts match
+                if len(o_c) == len(n_c):
+                    mods = []
+                    for col in common_vars:
+                        if col in o_c.columns and col in n_c.columns:
+                            d = (o_c[col].fillna("__NA__") != n_c[col].fillna("__NA__")).sum()
+                            if d > 0: mods.append(f"{col}({d})")
+                    entry["modified_vars"] = mods[:20]
+                    entry["modified_rows"] = int((o_c.fillna("__NA__").values != n_c.fillna("__NA__").values).any(axis=1).sum())
+                else:
+                    entry["modified_rows"] = abs(len(o_c) - len(n_c))
 
         is_identical = (not entry["added_vars"] and not entry["removed_vars"] and
                         not entry["added_rows"] and not entry["removed_rows"] and
@@ -1691,21 +1700,20 @@ def compare_datasets(
         added_rows = removed_rows = modified_rows = 0
 
         if key_list and all(k in df_old.columns and k in df_new.columns for k in key_list):
-            old_keys = df_old[key_list].astype(str).agg("|".join, axis=1)
-            new_keys = df_new[key_list].astype(str).agg("|".join, axis=1)
-            old_set = set(old_keys)
-            new_set = set(new_keys)
-
+            old_sub = df_old[key_list].astype(str).copy()
+            new_sub = df_new[key_list].astype(str).copy()
+            old_sub["_key"] = old_sub.agg("|".join, axis=1)
+            new_sub["_key"] = new_sub.agg("|".join, axis=1)
+            old_set = set(old_sub["_key"]); new_set = set(new_sub["_key"])
             added_rows = len(new_set - old_set)
             removed_rows = len(old_set - new_set)
 
             common_keys = old_set & new_set
             if common_keys:
-                df_old_idx = df_old.set_index(key_list).sort_index()
-                df_new_idx = df_new.set_index(key_list).sort_index()
-                common_old = df_old_idx.loc[df_old_idx.index.isin(common_keys)]
-                common_new = df_new_idx.loc[df_new_idx.index.isin(common_keys)]
-                # Align and compare
+                df_old["_key"] = old_sub["_key"]
+                df_new["_key"] = new_sub["_key"]
+                common_old = df_old[df_old["_key"].isin(common_keys)].drop(columns=["_key"]).reset_index(drop=True)
+                common_new = df_new[df_new["_key"].isin(common_keys)].drop(columns=["_key"]).reset_index(drop=True)
                 for col in common_vars:
                     if col in common_old.columns and col in common_new.columns:
                         diff_mask = common_old[col].fillna("__NA__") != common_new[col].fillna("__NA__")
