@@ -230,7 +230,6 @@ ${sasEnvTemplate()}
 
 ${sasEnvTemplate()}`;
 
-      const isStandalone = macro.type === 'standalone';
       if (data.source) {
         if (isStandalone) {
           code += `/* ── 独立 SAS 程序（可直接运行） ── */\n${data.source}\n`;
