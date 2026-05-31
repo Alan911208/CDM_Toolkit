@@ -1,7 +1,7 @@
 import { api, showToast } from '../app.js';
 
 export default function render() {
-  return `<div class="page-section"><h2>🔍 数据集比较</h2><p class="section-subtitle">上传旧版和新版 SAS 数据集 → 比对异同 → 网页展示 + Excel 下载</p></div>
+  return `<div class="page-section"><h2>🔍 SAS 数据集比较</h2><p class="section-subtitle">上传旧版和新版 SAS 数据集 → 比对异同 → 网页展示 + Excel 下载</p></div>
     <div class="form-row">
       <div class="form-group"><label style="font-weight:600;">📂 旧版本 (Old)</label><file-upload id="cmp-old" multiple accept=".sas7bdat"></file-upload></div>
       <div class="form-group"><label style="font-weight:600;">📂 新版本 (New)</label><file-upload id="cmp-new" multiple accept=".sas7bdat"></file-upload></div>
