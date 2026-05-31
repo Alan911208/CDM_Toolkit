@@ -851,22 +851,55 @@ async def api_compare_datasets(
 
 @app.post("/api/data-merge")
 async def api_data_merge(
-    operation: str = Form(...),       # union or join
-    how: str = Form("inner"),         # inner/left/right/outer (for join)
-    key: str = Form(""),              # common key columns
+    operation: str = Form(...),
+    how: str = Form("inner"),
+    key: str = Form(""),
     left_key: str = Form(""),
     right_key: str = Form(""),
     files: list[UploadFile] = File(...),
+    preview_only: bool = Form(False),
 ):
-    """Union or join uploaded datasets. Supports .sas7bdat/.xlsx/.csv."""
+    """Union or join uploaded datasets. Set preview_only=true for summary only."""
     from cdm_engine import union_datasets, join_datasets
 
     tmp = tempfile.mkdtemp()
-    saved = []
+    saved = []; summaries = []
     for f in files:
         fp = os.path.join(tmp, f.filename or "data")
         with open(fp, "wb") as out: out.write(f.file.read())
         saved.append(fp)
+
+        # Build per-file summary
+        import pandas as pd
+        ext = os.path.splitext(f.filename or "")[1].lower()
+        try:
+            if ext == ".sas7bdat":
+                df = pd.read_sas(fp, encoding="gbk")
+            elif ext in (".xlsx", ".xls"):
+                df = pd.read_excel(fp)
+            elif ext == ".csv":
+                df = pd.read_csv(fp)
+            else:
+                continue
+            summaries.append({
+                "file": f.filename,
+                "rows": len(df),
+                "cols": len(df.columns),
+                "columns": list(df.columns)[:20],
+                "format": ext,
+                "memory": f"{df.memory_usage(deep=True).sum() / (1024*1024):.1f} MB",
+            })
+        except Exception:
+            summaries.append({"file": f.filename, "rows": "?", "cols": "?", "columns": [], "format": ext, "error": "读取失败"})
+
+    if preview_only:
+        total_rows = sum(s["rows"] for s in summaries if isinstance(s["rows"], int))
+        return {
+            "files": summaries,
+            "total_rows": total_rows if operation == "union" else None,
+            "operation": operation,
+            "how": how if operation == "join" else None,
+        }
 
     out_path = os.path.join(tempfile.mkdtemp(), "result.xlsx")
     try:
