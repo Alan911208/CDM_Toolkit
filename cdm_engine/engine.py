@@ -1563,8 +1563,10 @@ def compare_datasets_summary(
             common = old_set & new_set
             if common:
                 # Compare common keys row-by-row via merge
-                df_old["_key"] = old_sub["_key"]
-                df_new["_key"] = new_sub["_key"]
+                df_old = df_old.copy()
+                df_new = df_new.copy()
+                df_old["_key"] = old_sub["_key"].values
+                df_new["_key"] = new_sub["_key"].values
                 o_c = df_old[df_old["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
                 n_c = df_new[df_new["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
                 # Only compare if row counts match

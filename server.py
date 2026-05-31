@@ -1042,7 +1042,7 @@ async def api_pdf_extract_table(
 async def api_sas_batch_to_xlsx(
     files: list[UploadFile] = File(...),
 ):
-    """Convert multiple SAS datasets to Excel with formatted headers: 变量名(label)."""
+    """Convert multiple SAS datasets to Excel with formatted headers: 变量名 + label."""
     import zipfile
     import pandas as pd
     from openpyxl import Workbook
