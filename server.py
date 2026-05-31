@@ -30,6 +30,13 @@ from cdm_engine import (
     delete_sheets,
     calc_cockcroft_gault,
     calc_ckd_epi,
+    calc_mdrd_egfr,
+    calc_bmi,
+    calc_bsa_mosteller,
+    calc_ldl_friedewald,
+    calc_corrected_calcium,
+    calc_ibw_devine,
+    calc_anion_gap,
     generate_toc,
     generate_sas_derive_toc,
 )
@@ -236,61 +243,156 @@ async def api_delete_sheets(
 # ── Medical Calculators ───────────────────────────────────────────────────
 
 
-@app.post("/api/creatinine")
-async def api_creatinine(
+# Column specs for each method: {param_name: (label, required)}
+MEDICAL_CALC_METHODS = {
+    "CG": {
+        "name": "Cockcroft-Gault (CrCl)",
+        "desc": "肌酐清除率 — 需要年龄/体重/肌酐/性别",
+        "params": {"age_col": True, "scr_col": True, "gender_col": True, "weight_col": True, "result_col": True},
+    },
+    "CKD": {
+        "name": "CKD-EPI 2021 (eGFR)",
+        "desc": "估算肾小球滤过率 — 需要年龄/肌酐/性别",
+        "params": {"age_col": True, "scr_col": True, "gender_col": True, "result_col": True},
+    },
+    "MDRD": {
+        "name": "MDRD (eGFR)",
+        "desc": "MDRD 研究方程 eGFR — 需要年龄/肌酐/性别",
+        "params": {"age_col": True, "scr_col": True, "gender_col": True, "result_col": True},
+    },
+    "BMI": {
+        "name": "BMI (体重指数)",
+        "desc": "体重(kg) / 身高(m)² — 需要体重/身高",
+        "params": {"weight_col": True, "height_col": True, "result_col": True},
+    },
+    "BSA": {
+        "name": "BSA 体表面积 (Mosteller)",
+        "desc": "√(身高cm × 体重kg / 3600) — 需要体重/身高",
+        "params": {"weight_col": True, "height_col": True, "result_col": True},
+    },
+    "LDL": {
+        "name": "LDL 胆固醇 (Friedewald)",
+        "desc": "LDL = TC - HDL - TG/5 — 需要 TC/HDL/TG",
+        "params": {"tc_col": True, "hdl_col": True, "tg_col": True, "result_col": True},
+    },
+    "CORRCA": {
+        "name": "校正血钙",
+        "desc": "校正 Ca = Ca + 0.8×(4-Albumin) — 需要 Ca/Albumin",
+        "params": {"ca_col": True, "albumin_col": True, "result_col": True},
+    },
+    "IBW": {
+        "name": "理想体重 (Devine)",
+        "desc": "IBW = 50/45.5 + 2.3×(身高英寸-60) — 需要身高/性别",
+        "params": {"height_col": True, "gender_col": True, "result_col": True},
+    },
+    "AG": {
+        "name": "阴离子间隙",
+        "desc": "AG = Na - (Cl + HCO₃) — 需要 Na/Cl/HCO3",
+        "params": {"na_col": True, "cl_col": True, "hco3_col": True, "result_col": True},
+    },
+}
+
+
+@app.get("/api/medical-methods")
+async def api_medical_methods():
+    """Return available medical calculation methods and their parameters."""
+    return {"methods": [
+        {"id": k, "name": v["name"], "desc": v["desc"], "params": list(v["params"].keys())}
+        for k, v in MEDICAL_CALC_METHODS.items()
+    ]}
+
+
+@app.post("/api/medical-calc")
+async def api_medical_calc(
     file: UploadFile = File(...),
     method: str = Form("CG"),
-    age_col: str = Form(...),
-    scr_col: str = Form(...),
-    gender_col: str = Form(...),
-    result_col: str = Form(...),
+    age_col: str = Form(""),
+    scr_col: str = Form(""),
+    gender_col: str = Form(""),
     weight_col: str = Form(""),
+    height_col: str = Form(""),
+    tc_col: str = Form(""),
+    hdl_col: str = Form(""),
+    tg_col: str = Form(""),
+    ca_col: str = Form(""),
+    albumin_col: str = Form(""),
+    na_col: str = Form(""),
+    cl_col: str = Form(""),
+    hco3_col: str = Form(""),
+    result_col: str = Form(""),
     row_start: int = Form(2),
 ):
-    """Batch calculate CrCl (Cockcroft-Gault) or eGFR (CKD-EPI 2021)."""
+    """Batch clinical calculation on uploaded workbook."""
     from openpyxl import load_workbook
     from openpyxl.utils import column_index_from_string
+
+    if method not in MEDICAL_CALC_METHODS:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": f"不支持的方法: {method}"}, status_code=400)
+
     in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
     with open(in_path, "wb") as f:
         f.write(file.file.read())
     wb = load_workbook(in_path)
     ws = wb.active
 
-    age_c = column_index_from_string(age_col)
-    scr_c = column_index_from_string(scr_col)
-    gender_c = column_index_from_string(gender_col)
-    result_c = column_index_from_string(result_col)
-    weight_c = column_index_from_string(weight_col) if weight_col else 0
+    def _col(letter: str) -> int:
+        return column_index_from_string(letter) if letter else 0
+
+    def _val(r: int, c: int, default: float = 0.0) -> float:
+        try:
+            v = ws.cell(row=r, column=c).value
+            return float(v) if v is not None else default
+        except (ValueError, TypeError):
+            return default
+
+    def _gender(r: int, c: int) -> bool:
+        g = str(ws.cell(row=r, column=c).value or "").upper()
+        return g.startswith("F") or "女" in g
+
+    age_c, scr_c, gender_c = _col(age_col), _col(scr_col), _col(gender_col)
+    weight_c, height_c = _col(weight_col), _col(height_col)
+    tc_c, hdl_c, tg_c = _col(tc_col), _col(hdl_col), _col(tg_col)
+    ca_c, albumin_c = _col(ca_col), _col(albumin_col)
+    na_c, cl_c, hco3_c = _col(na_col), _col(cl_col), _col(hco3_col)
+    result_c = _col(result_col)
 
     count = 0
     for r in range(row_start, ws.max_row + 1):
         try:
-            age = float(ws.cell(row=r, column=age_c).value or 0)
-            scr = float(ws.cell(row=r, column=scr_c).value or 0)
-            gender = str(ws.cell(row=r, column=gender_c).value or "").upper()
-            is_female = gender.startswith("F") or "女" in gender
-
-            if age <= 0 or scr <= 0:
+            if method == "CG":
+                age, scr, wt = _val(r, age_c), _val(r, scr_c), _val(r, weight_c)
+                is_f = _gender(r, gender_c)
+                result = calc_cockcroft_gault(age, wt, scr, is_f)
+            elif method == "CKD":
+                result = calc_ckd_epi(_val(r, age_c), _val(r, scr_c), _gender(r, gender_c))
+            elif method == "MDRD":
+                result = calc_mdrd_egfr(_val(r, age_c), _val(r, scr_c), _gender(r, gender_c))
+            elif method == "BMI":
+                result = calc_bmi(_val(r, weight_c), _val(r, height_c))
+            elif method == "BSA":
+                result = calc_bsa_mosteller(_val(r, weight_c), _val(r, height_c))
+            elif method == "LDL":
+                result = calc_ldl_friedewald(_val(r, tc_c), _val(r, hdl_c), _val(r, tg_c))
+            elif method == "CORRCA":
+                result = calc_corrected_calcium(_val(r, ca_c), _val(r, albumin_c))
+            elif method == "IBW":
+                result = calc_ibw_devine(_val(r, height_c), _gender(r, gender_c))
+            elif method == "AG":
+                result = calc_anion_gap(_val(r, na_c), _val(r, cl_c), _val(r, hco3_c))
+            else:
                 continue
 
-            if method == "CG":
-                if weight_c == 0:
-                    ws.cell(row=r, column=result_c).value = "需要体重列"
-                    continue
-                weight = float(ws.cell(row=r, column=weight_c).value or 0)
-                result = calc_cockcroft_gault(age, weight, scr, is_female)
-            else:  # CKD
-                result = calc_ckd_epi(age, scr, is_female)
-
-            ws.cell(row=r, column=result_c).value = result
-            ws.cell(row=r, column=result_c).number_format = '0.00'
-            count += 1
+            if result_c > 0 and result != -1.0:
+                ws.cell(row=r, column=result_c).value = result
+                ws.cell(row=r, column=result_c).number_format = '0.00'
+                count += 1
         except (ValueError, TypeError):
             continue
 
     out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
     wb.save(out_path)
-    return FileResponse(out_path, filename="creatinine_result.xlsx",
+    return FileResponse(out_path, filename=f"{method.lower()}_result.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 

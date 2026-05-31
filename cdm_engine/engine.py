@@ -1124,6 +1124,108 @@ def calc_ckd_epi(age: float, scr_mg_dl: float,
     return round(egfr, 2)
 
 
+def calc_mdrd_egfr(age: float, scr_mg_dl: float,
+                   is_female: bool = False, is_black: bool = False) -> float:
+    """
+    MDRD Study Equation for eGFR (original 4-variable formula).
+
+    eGFR = 175 * Scr^(-1.154) * Age^(-0.203) * 0.742(if female) * 1.212(if black)
+
+    Returns -1 if Scr <= 0.
+    """
+    if scr_mg_dl <= 0:
+        return -1.0
+
+    egfr = 175.0 * (scr_mg_dl ** -1.154) * (age ** -0.203)
+    if is_female:
+        egfr *= 0.742
+    if is_black:
+        egfr *= 1.212
+
+    return round(egfr, 2)
+
+
+def calc_bmi(weight_kg: float, height_cm: float) -> float:
+    """
+    Body Mass Index (BMI).
+
+    BMI = weight(kg) / height(m)²
+
+    Returns -1 if height <= 0.
+    """
+    if height_cm <= 0:
+        return -1.0
+    height_m = height_cm / 100.0
+    return round(weight_kg / (height_m ** 2), 1)
+
+
+def calc_bsa_mosteller(weight_kg: float, height_cm: float) -> float:
+    """
+    Body Surface Area — Mosteller formula.
+
+    BSA (m²) = sqrt((height_cm * weight_kg) / 3600)
+
+    Returns -1 if inputs <= 0.
+    """
+    import math
+    if height_cm <= 0 or weight_kg <= 0:
+        return -1.0
+    return round(math.sqrt((height_cm * weight_kg) / 3600), 2)
+
+
+def calc_ldl_friedewald(tc: float, hdl: float, tg: float) -> float:
+    """
+    LDL Cholesterol — Friedewald formula.
+
+    LDL = TC - HDL - TG/5
+
+    Note: only valid when TG < 400 mg/dL.
+    Returns -1 if TG >= 400 or inputs invalid.
+    """
+    if tg >= 400 or tc <= 0 or hdl < 0 or tg <= 0:
+        return -1.0
+    return round(tc - hdl - (tg / 5.0), 1)
+
+
+def calc_corrected_calcium(ca: float, albumin: float,
+                           normal_albumin: float = 4.0) -> float:
+    """
+    Corrected Calcium for hypoalbuminemia.
+
+    Corrected Ca = measured Ca + 0.8 * (normal_albumin - measured_albumin)
+
+    Default normal albumin = 4.0 g/dL.
+    """
+    return round(ca + 0.8 * (normal_albumin - albumin), 1)
+
+
+def calc_ibw_devine(height_cm: float, is_female: bool = False) -> float:
+    """
+    Ideal Body Weight — Devine formula.
+
+    Male:   IBW(kg) = 50.0 + 2.3 * (height_inches - 60)
+    Female: IBW(kg) = 45.5 + 2.3 * (height_inches - 60)
+
+    Returns -1 if height <= 0.
+    """
+    if height_cm <= 0:
+        return -1.0
+    height_in = height_cm / 2.54
+    base = 45.5 if is_female else 50.0
+    return round(base + 2.3 * (height_in - 60), 1)
+
+
+def calc_anion_gap(na: float, cl: float, hco3: float) -> float:
+    """
+    Anion Gap.
+
+    AG = Na⁺ - (Cl⁻ + HCO₃⁻)
+
+    Normal range: 8-12 mEq/L.
+    """
+    return round(na - (cl + hco3), 1)
+
+
 # ============================================================
 #  Internal Helpers
 # ============================================================
