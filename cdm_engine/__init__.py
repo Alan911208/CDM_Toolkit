@@ -23,9 +23,15 @@ from cdm_engine.engine import (
     batch_rename_sheets,
     list_sheet_names,
     delete_hidden_sheets,
+    create_sheets_from_list,
+    delete_sheets,
     # Track changes
     track_changes,
     changes_report,
+    # Strikethrough
+    delete_strikethrough_rows,
+    clear_strikethrough,
+    # Medical calculators
     # Special chars
     scan_special_chars,
     # File listing
@@ -36,6 +42,10 @@ from cdm_engine.engine import (
     calc_date_diff,
     # Lab units
     convert_lab_units,
+    # Medical calculators
+    calc_cockcroft_gault,
+    calc_ckd_epi,
+    # Utilities
     # Sheet split
     split_sheet_by_column,
     # Workbook merge

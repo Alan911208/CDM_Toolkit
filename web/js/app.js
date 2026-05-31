@@ -15,7 +15,12 @@ const ROUTES = {
   '/files':  { title: '文件目录浏览', page: 'files.js' },
   '/dates':  { title: '日期计算', page: 'dates.js' },
   '/units':  { title: '单位转换', page: 'units.js' },
-  '/sas':    { title: 'SAS 程序', page: 'sas.js' },
+  '/sas':       { title: 'SAS 程序', page: 'sas.js' },
+  '/clean':     { title: '数据清理', page: 'clean.js' },
+  '/sheets':    { title: '工作表管理', page: 'sheets.js' },
+  '/toc':       { title: 'TOC 目录', page: 'toc.js' },
+  '/changes':   { title: '修改痕迹', page: 'changes.js' },
+  '/creatinine':{ title: '医学计算器', page: 'creatinine.js' },
 };
 
 let dashboardHTML = null;

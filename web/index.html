@@ -18,6 +18,11 @@
       <a href="/dates" data-route="/dates">日期计算</a>
       <a href="/units" data-route="/units">单位转换</a>
       <a href="/sas" data-route="/sas">SAS 程序</a>
+      <a href="/clean" data-route="/clean">数据清理</a>
+      <a href="/sheets" data-route="/sheets">工作表管理</a>
+      <a href="/toc" data-route="/toc">TOC 目录</a>
+      <a href="/changes" data-route="/changes">修改痕迹</a>
+      <a href="/creatinine" data-route="/creatinine">医学计算</a>
     </nav>
   </header>
   <main class="app-main" id="app-main">
@@ -63,29 +68,40 @@
         <p>实验室检验单位批量统一转换（24组内置因子）</p>
         <span class="badge badge-shared">双端</span>
       </a>
-      <a class="card" href="/sas" data-route="/sas">
+      <a class="card" href="/clean" data-route="/clean">
         <div class="card-icon"></div>
-        <h3>SAS 程序运行器</h3>
-        <p>动态加载执行 SAS 宏程序，查看日志输出，支持中/UTF-8 配置</p>
-        <span class="badge badge-web">Web+SAS</span>
+        <h3>数据清理</h3>
+        <p>文本标准化、重复高亮、空白行管理、删除线处理</p>
+        <span class="badge badge-web">Web</span>
+      </a>
+      <a class="card" href="/sheets" data-route="/sheets">
+        <div class="card-icon"></div>
+        <h3>工作表管理</h3>
+        <p>批量创建、删除、重命名、列出工作表名称</p>
+        <span class="badge badge-web">Web</span>
+      </a>
+      <a class="card" href="/toc" data-route="/toc">
+        <div class="card-icon"></div>
+        <h3>TOC 目录生成</h3>
+        <p>生成带超链接的目录页，支持标准版和 SAS Derive 版</p>
+        <span class="badge badge-web">Web</span>
+      </a>
+      <a class="card" href="/changes" data-route="/changes">
+        <div class="card-icon"></div>
+        <h3>修改痕迹跟踪</h3>
+        <p>对比原版文件，高亮标记所有单元格修改并添加批注</p>
+        <span class="badge badge-web">Web</span>
+      </a>
+      <a class="card" href="/creatinine" data-route="/creatinine">
+        <div class="card-icon"></div>
+        <h3>医学计算器</h3>
+        <p>批量计算 CrCl (Cockcroft-Gault) 和 eGFR (CKD-EPI 2021)</p>
+        <span class="badge badge-web">Web</span>
       </a>
     </div>
 
-    <div class="page-section" style="margin-top:32px;">
-      <h2>Excel VBA 工具箱</h2>
-      <p class="section-subtitle">以下功能请在 Excel 中按 Alt+F8 使用</p>
-      <div class="cards">
-        <div class="card"><div class="card-icon"></div><h3>文本术语标准化</h3><p>批量替换非标准术语为 CDM 标准术语</p><span class="badge badge-vba">VBA</span></div>
-        <div class="card"><div class="card-icon"></div><h3>重复值高亮</h3><p>高亮相邻行中相同列值连续重复的单元格</p><span class="badge badge-vba">VBA</span></div>
-        <div class="card"><div class="card-icon"></div><h3>空白行管理</h3><p>每N行插入空白行、组间插入、删除空白行</p><span class="badge badge-vba">VBA</span></div>
-        <div class="card"><div class="card-icon"></div><h3>TOC 目录生成</h3><p>生成带超链接的工作簿目录 + SAS Derive 风格</p><span class="badge badge-vba">VBA</span></div>
-        <div class="card"><div class="card-icon"></div><h3>工作表管理</h3><p>批量重命名、列出、删除隐藏 sheet</p><span class="badge badge-vba">VBA</span></div>
-        <div class="card"><div class="card-icon"></div><h3>修改痕迹跟踪</h3><p>比较原版并添加批注显示"旧值→新值"</p><span class="badge badge-vba">VBA</span></div>
-      </div>
-    </div>
-
     <div class="status-bar" id="status-bar">
-      <span id="engine-status">Python CDM Engine v3.0 | VBA: 8模块 | localhost:8520</span>
+      <span id="engine-status">CDM Engine v3.0 — Python + SAS + Web | localhost:8520</span>
       <span id="spa-status" style="margin-left:16px;color:#999;font-size:11px;"></span>
     </div>
   </main>

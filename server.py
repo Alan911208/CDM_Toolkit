@@ -24,6 +24,14 @@ from cdm_engine import (
     add_days_to_column_file,
     convert_lab_units_file,
     list_directory,
+    delete_strikethrough_rows,
+    clear_strikethrough,
+    create_sheets_from_list,
+    delete_sheets,
+    calc_cockcroft_gault,
+    calc_ckd_epi,
+    generate_toc,
+    generate_sas_derive_toc,
 )
 
 # ── JavaScript MIME fix for Windows ──────────────────────────────────────
@@ -148,6 +156,225 @@ async def api_unit_convert(
                                           standard_unit, test_filter)
     return FileResponse(result_path, filename="units_result.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── Strikethrough ─────────────────────────────────────────────────────────
+
+
+@app.post("/api/strikethrough")
+async def api_strikethrough(
+    file: UploadFile = File(...),
+    action: str = Form("delete"),
+):
+    """Delete strikethrough rows or clear strikethrough formatting."""
+    from openpyxl import load_workbook
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+    ws = wb.active
+
+    if action == "delete":
+        count = delete_strikethrough_rows(ws)
+        msg = f"删除了 {count} 行含删除线的数据"
+    else:
+        count = clear_strikethrough(ws)
+        msg = f"清除了 {count} 个单元格的删除线格式"
+
+    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="strikethrough_result.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── Sheet Management ──────────────────────────────────────────────────────
+
+
+@app.post("/api/create-sheets")
+async def api_create_sheets(
+    file: UploadFile = File(...),
+    sheet_names: str = Form(...),
+    clear_first: bool = Form(False),
+):
+    """Create sheets from a comma/newline-separated name list."""
+    from openpyxl import load_workbook
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+
+    names = [n.strip() for n in sheet_names.replace("\n", ",").split(",") if n.strip()]
+    count = create_sheets_from_list(wb, names, clear_first=clear_first)
+
+    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="sheets_result.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.post("/api/delete-sheets")
+async def api_delete_sheets(
+    file: UploadFile = File(...),
+    sheet_names: str = Form(...),
+):
+    """Delete specified sheets by name."""
+    from openpyxl import load_workbook
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+
+    names = [n.strip() for n in sheet_names.replace("\n", ",").split(",") if n.strip()]
+    count = delete_sheets(wb, names)
+
+    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="sheets_result.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── Medical Calculators ───────────────────────────────────────────────────
+
+
+@app.post("/api/creatinine")
+async def api_creatinine(
+    file: UploadFile = File(...),
+    method: str = Form("CG"),
+    age_col: str = Form(...),
+    scr_col: str = Form(...),
+    gender_col: str = Form(...),
+    result_col: str = Form(...),
+    weight_col: str = Form(""),
+    row_start: int = Form(2),
+):
+    """Batch calculate CrCl (Cockcroft-Gault) or eGFR (CKD-EPI 2021)."""
+    from openpyxl import load_workbook
+    from openpyxl.utils import column_index_from_string
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+    ws = wb.active
+
+    age_c = column_index_from_string(age_col)
+    scr_c = column_index_from_string(scr_col)
+    gender_c = column_index_from_string(gender_col)
+    result_c = column_index_from_string(result_col)
+    weight_c = column_index_from_string(weight_col) if weight_col else 0
+
+    count = 0
+    for r in range(row_start, ws.max_row + 1):
+        try:
+            age = float(ws.cell(row=r, column=age_c).value or 0)
+            scr = float(ws.cell(row=r, column=scr_c).value or 0)
+            gender = str(ws.cell(row=r, column=gender_c).value or "").upper()
+            is_female = gender.startswith("F") or "女" in gender
+
+            if age <= 0 or scr <= 0:
+                continue
+
+            if method == "CG":
+                if weight_c == 0:
+                    ws.cell(row=r, column=result_c).value = "需要体重列"
+                    continue
+                weight = float(ws.cell(row=r, column=weight_c).value or 0)
+                result = calc_cockcroft_gault(age, weight, scr, is_female)
+            else:  # CKD
+                result = calc_ckd_epi(age, scr, is_female)
+
+            ws.cell(row=r, column=result_c).value = result
+            ws.cell(row=r, column=result_c).number_format = '0.00'
+            count += 1
+        except (ValueError, TypeError):
+            continue
+
+    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="creatinine_result.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── TOC Generator ─────────────────────────────────────────────────────────
+
+
+@app.post("/api/toc")
+async def api_toc(
+    file: UploadFile = File(...),
+    style: str = Form("standard"),
+    toc_name: str = Form("TOC"),
+):
+    """Generate a Table of Contents sheet (standard or SAS Derive style)."""
+    from openpyxl import load_workbook
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+
+    if style == "derive":
+        generate_sas_derive_toc(wb, toc_name=toc_name)
+    else:
+        generate_toc(wb, toc_name=toc_name)
+
+    out_path = os.path.join(tempfile.mkdtemp(), "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="toc_result.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── Track Changes ─────────────────────────────────────────────────────────
+
+
+@app.post("/api/track-changes")
+async def api_track_changes(
+    file: UploadFile = File(...),
+    original: UploadFile = File(...),
+    add_comments: bool = Form(True),
+    highlight: bool = Form(True),
+):
+    """Compare current file against original, mark changed cells."""
+    from openpyxl import load_workbook
+    from cdm_engine import track_changes
+
+    tmp_dir = tempfile.mkdtemp()
+    in_path = os.path.join(tmp_dir, "current.xlsx")
+    orig_path = os.path.join(tmp_dir, "original.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    with open(orig_path, "wb") as f:
+        f.write(original.file.read())
+
+    wb = load_workbook(in_path)
+    ws = wb.active
+    count = track_changes(ws, orig_path, add_comments=add_comments, highlight_changes=highlight)
+
+    out_path = os.path.join(tmp_dir, "output.xlsx")
+    wb.save(out_path)
+    return FileResponse(out_path, filename="tracked_changes.xlsx",
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── List Sheets ───────────────────────────────────────────────────────────
+
+
+@app.post("/api/list-sheets")
+async def api_list_sheets(
+    file: UploadFile = File(...),
+):
+    """Return all sheet names and visibility status."""
+    from openpyxl import load_workbook
+    from cdm_engine import list_sheet_names
+    in_path = os.path.join(tempfile.mkdtemp(), "input.xlsx")
+    with open(in_path, "wb") as f:
+        f.write(file.file.read())
+    wb = load_workbook(in_path)
+    sheets = []
+    for name in wb.sheetnames:
+        ws = wb[name]
+        sheets.append({
+            "name": name,
+            "visible": ws.sheet_state == "visible",
+        })
+    return {"count": len(sheets), "sheets": sheets}
 
 
 # ── SAS Execution ──────────────────────────────────────────────────────────

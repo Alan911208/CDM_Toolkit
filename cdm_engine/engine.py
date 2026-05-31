@@ -929,6 +929,202 @@ def list_directory(path: str, include_subfolders: bool = True,
 
 
 # ============================================================
+# 19. Strikethrough Row Management
+# ============================================================
+def delete_strikethrough_rows(ws: openpyxl.worksheet.worksheet.Worksheet) -> int:
+    """
+    Delete rows where any cell has strikethrough formatting.
+    Works bottom-up to preserve row indices during deletion.
+
+    Returns
+    -------
+    int — number of rows deleted
+    """
+    rows_to_delete: set[int] = set()
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+        for cell in row:
+            if cell.value is not None and cell.font and cell.font.strikethrough:
+                rows_to_delete.add(cell.row)
+                break
+
+    # Delete bottom-up
+    deleted = 0
+    for r in sorted(rows_to_delete, reverse=True):
+        ws.delete_rows(r)
+        deleted += 1
+
+    return deleted
+
+
+def clear_strikethrough(ws: openpyxl.worksheet.worksheet.Worksheet) -> int:
+    """
+    Remove strikethrough formatting from all cells.
+
+    Returns
+    -------
+    int — number of cells cleared
+    """
+    cleared = 0
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+        for cell in row:
+            if cell.font and cell.font.strikethrough:
+                cell.font = Font(
+                    name=cell.font.name,
+                    size=cell.font.size,
+                    bold=cell.font.bold,
+                    italic=cell.font.italic,
+                    underline=cell.font.underline,
+                    color=cell.font.color,
+                    strikethrough=False,
+                )
+                cleared += 1
+    return cleared
+
+
+# ============================================================
+# 20. Sheet Creation / Deletion
+# ============================================================
+def create_sheets_from_list(wb: Workbook,
+                            sheet_names: list[str],
+                            clear_first: bool = False) -> int:
+    """
+    Batch create worksheets from a name list.
+    Handles: trim to 31 chars, replace illegal filename chars,
+    handle duplicates with _1/_2 suffix.
+
+    Parameters
+    ----------
+    wb : Workbook
+    sheet_names : list[str]
+    clear_first : bool
+        If True, delete existing sheets with same names before creating.
+
+    Returns
+    -------
+    int — number of sheets created
+    """
+    import re
+    created = 0
+    seen: set[str] = set()
+
+    for name in sheet_names:
+        name = str(name).strip()
+        if not name:
+            continue
+
+        # Trim to 31 chars (Excel sheet name limit)
+        name = name[:31]
+        # Replace illegal characters
+        name = re.sub(r'[\\/*?:\[\]]', '_', name)
+
+        # Handle duplicates
+        base_name = name
+        suffix = 1
+        while name.lower() in seen:
+            suffix_str = f"_{suffix}"
+            max_base = 31 - len(suffix_str)
+            name = base_name[:max_base] + suffix_str
+            suffix += 1
+
+        seen.add(name.lower())
+
+        # Delete existing if requested
+        if clear_first and name in wb.sheetnames:
+            del wb[name]
+
+        # Skip if already exists (and clear_first is False)
+        if name in wb.sheetnames:
+            continue
+
+        wb.create_sheet(name)
+        created += 1
+
+    return created
+
+
+def delete_sheets(wb: Workbook, sheet_names: list[str]) -> int:
+    """
+    Delete specified sheets by name. Cannot delete the last visible sheet.
+
+    Returns
+    -------
+    int — number of sheets deleted
+    """
+    deleted = 0
+    visible = [s for s in wb.sheetnames if wb[s].sheet_state == 'visible']
+
+    for name in sheet_names:
+        name = str(name).strip()
+        if name in wb.sheetnames:
+            # Never delete the last visible sheet
+            if len(visible) <= 1 and wb[name].sheet_state == 'visible':
+                continue
+            if wb[name].sheet_state == 'visible':
+                visible.remove(name)
+            del wb[name]
+            deleted += 1
+
+    return deleted
+
+
+# ============================================================
+# 21. Medical Calculators — CrCl & eGFR
+# ============================================================
+def calc_cockcroft_gault(age: float, weight_kg: float, scr_mg_dl: float,
+                         is_female: bool = False) -> float:
+    """
+    Cockcroft-Gault Creatinine Clearance.
+
+    Formula: CrCl = ((140 - age) * weight_kg) / (72 * Scr_mg_dL) * 0.85 (if female)
+
+    Returns -1 if Scr <= 0.
+    """
+    if scr_mg_dl <= 0:
+        return -1.0
+    crcl = ((140 - age) * weight_kg) / (72.0 * scr_mg_dl)
+    if is_female:
+        crcl *= 0.85
+    return round(crcl, 2)
+
+
+def calc_ckd_epi(age: float, scr_mg_dl: float,
+                 is_female: bool = False) -> float:
+    """
+    CKD-EPI 2021 eGFR formula.
+
+    eGFR = 142 * (Scr/A)^B * 0.9938^age * (1.012 if female)
+
+    Where:
+      A = 0.7 (female) / 0.9 (male)
+      B = -0.241 (if Scr <= A*female_factor) else different values per gender
+
+    Returns -1 if Scr <= 0.
+    """
+    if scr_mg_dl <= 0:
+        return -1.0
+
+    if is_female:
+        a = 0.7
+        # B depends on Scr relative to A
+        if scr_mg_dl <= 0.7:
+            b = -0.241
+        else:
+            b = -1.2
+    else:
+        a = 0.9
+        if scr_mg_dl <= 0.9:
+            b = -0.302
+        else:
+            b = -1.2
+
+    egfr = 142.0 * ((scr_mg_dl / a) ** b) * (0.9938 ** age)
+    if is_female:
+        egfr *= 1.012
+
+    return round(egfr, 2)
+
+
+# ============================================================
 #  Internal Helpers
 # ============================================================
 def _last_data_row(ws, col: int = 1) -> int:
