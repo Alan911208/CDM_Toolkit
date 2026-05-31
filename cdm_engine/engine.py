@@ -1806,3 +1806,66 @@ def compare_datasets(
 
     wb.save(output_path)
     return output_path
+
+
+# ============================================================
+# 25. Data Union & Join
+# ============================================================
+def union_datasets(file_paths: list[str], output_path: str) -> str:
+    """Union (row-bind) multiple datasets. Supports .sas7bdat/.xlsx/.csv."""
+    import pandas as pd
+    dfs = []; all_cols = set()
+    for fp in file_paths:
+        ext = os.path.splitext(fp)[1].lower()
+        if ext == ".sas7bdat": df = sas_to_dataframe(fp)
+        elif ext in (".xlsx", ".xls"): df = pd.read_excel(fp)
+        elif ext == ".csv": df = pd.read_csv(fp)
+        else: continue
+        all_cols.update(df.columns); dfs.append(df)
+    if not dfs: raise ValueError("没有有效的数据文件")
+    aligned = []
+    for df in dfs:
+        for c in all_cols - set(df.columns): df[c] = None
+        aligned.append(df[list(all_cols)])
+    result = pd.concat(aligned, ignore_index=True)
+    wb = Workbook(); ws = wb.active; ws.title = "Union"
+    for ci, col in enumerate(result.columns, 1):
+        c = ws.cell(row=1, column=ci, value=str(col)); c.font = HEADER_FONT; c.fill = HEADER_FILL
+    for ri, (_, row) in enumerate(result.iterrows()):
+        for ci, col in enumerate(result.columns, 1):
+            val = row[col]
+            if isinstance(val, float) and pd.isna(val): val = None
+            ws.cell(row=ri + 2, column=ci, value=val)
+    auto_width(ws); wb.save(output_path); return output_path
+
+
+def join_datasets(left_path: str, right_path: str, key: str, how: str = "inner",
+                  left_key: str = "", right_key: str = "", output_path: str = "") -> str:
+    """Join two datasets by key column(s). how: inner/left/right/outer."""
+    import pandas as pd
+    def _read(fp):
+        ext = os.path.splitext(fp)[1].lower()
+        if ext == ".sas7bdat": return sas_to_dataframe(fp)
+        elif ext in (".xlsx", ".xls"): return pd.read_excel(fp)
+        elif ext == ".csv": return pd.read_csv(fp)
+        else: raise ValueError(f"不支持: {ext}")
+    left = _read(left_path); right = _read(right_path)
+    lk = left_key or key; rk = right_key or key
+    lkeys = [k.strip() for k in lk.split(",") if k.strip()]
+    rkeys = [k.strip() for k in rk.split(",") if k.strip()]
+    for k in lkeys:
+        if k not in left.columns: raise ValueError(f"左表无列: {k}")
+    for k in rkeys:
+        if k not in right.columns: raise ValueError(f"右表无列: {k}")
+    result = pd.merge(left, right, left_on=lkeys, right_on=rkeys, how=how,
+                      suffixes=('_left', '_right'))
+    if not output_path: output_path = os.path.join(tempfile.mkdtemp(), "joined.xlsx")
+    wb = Workbook(); ws = wb.active; ws.title = "Join_" + how
+    for ci, col in enumerate(result.columns, 1):
+        c = ws.cell(row=1, column=ci, value=str(col)); c.font = HEADER_FONT; c.fill = HEADER_FILL
+    for ri, (_, row) in enumerate(result.iterrows()):
+        for ci, col in enumerate(result.columns, 1):
+            val = row[col]
+            if isinstance(val, float) and pd.isna(val): val = None
+            ws.cell(row=ri + 2, column=ci, value=val)
+    auto_width(ws); wb.save(output_path); return output_path

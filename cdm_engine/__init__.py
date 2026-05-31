@@ -70,6 +70,8 @@ from cdm_engine.engine import (
     scan_sas_metadata,
     compare_datasets_summary,
     compare_datasets,
+    union_datasets,
+    join_datasets,
     # Utilities
     apply_header_style,
     auto_width,

@@ -27,7 +27,8 @@
       <a href="/pdfmerge" data-route="/pdfmerge">PDF 合并</a>
       <a href="/pdfsplit" data-route="/pdfsplit">PDF 分割</a>
       <a href="/docx2pdf" data-route="/docx2pdf">Word 转 PDF</a>
-            <a href="/explorer" data-route="/explorer">Data Explorer</a>
+            <a href="/datamerge" data-route="/datamerge">拼接数据</a>
+      <a href="/explorer" data-route="/explorer">Data Explorer</a>
     </nav>
   </header>
   <main class="app-main" id="app-main">
@@ -53,8 +54,9 @@
     </div>
 
     <div class="page-section">
-      <h2>📦 SAS 工具</h2>
+      <h2>📦 数据整合</h2>
       <div class="cards">
+        <a class="card" href="/datamerge" data-route="/datamerge"><div class="card-icon"></div><h3>拼接数据</h3><p>上传多个文件（SAS/Excel/CSV），Union 行合并或 Join 关联</p><span class="badge badge-web">New</span></a>
         <a class="card" href="/compare" data-route="/compare"><div class="card-icon"></div><h3>SAS 数据集比较</h3><p>上传新旧两批 SAS 数据集，比对 Schema/行数/值差异</p><span class="badge badge-web">Web</span></a>
         <a class="card" href="/sas2excel" data-route="/sas2excel"><div class="card-icon"></div><h3>SAS 转 Excel</h3><p>批量转换 .sas7bdat → Excel，第一行变量名第二行label</p><span class="badge badge-web">Web</span></a>
         <a class="card" href="/saschart" data-route="/saschart"><div class="card-icon"></div><h3>SAS 数据集图表</h3><p>上传 .sas7bdat，选列选图表类型，生成 Excel 图表</p><span class="badge badge-web">Web</span></a>

@@ -846,6 +846,48 @@ async def api_compare_datasets(
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+# ── Data Union & Join ────────────────────────────────────────────────────
+
+
+@app.post("/api/data-merge")
+async def api_data_merge(
+    operation: str = Form(...),       # union or join
+    how: str = Form("inner"),         # inner/left/right/outer (for join)
+    key: str = Form(""),              # common key columns
+    left_key: str = Form(""),
+    right_key: str = Form(""),
+    files: list[UploadFile] = File(...),
+):
+    """Union or join uploaded datasets. Supports .sas7bdat/.xlsx/.csv."""
+    from cdm_engine import union_datasets, join_datasets
+
+    tmp = tempfile.mkdtemp()
+    saved = []
+    for f in files:
+        fp = os.path.join(tmp, f.filename or "data")
+        with open(fp, "wb") as out: out.write(f.file.read())
+        saved.append(fp)
+
+    out_path = os.path.join(tempfile.mkdtemp(), "result.xlsx")
+    try:
+        if operation == "union":
+            union_datasets(saved, out_path)
+            fname = "union_result.xlsx"
+        elif operation == "join":
+            if len(saved) < 2:
+                return {"error": "Join 需要至少 2 个文件"}
+            join_datasets(saved[0], saved[1], key=key, how=how,
+                          left_key=left_key, right_key=right_key, output_path=out_path)
+            fname = "join_result.xlsx"
+        else:
+            return {"error": f"不支持的操作: {operation}"}
+    except ValueError as e:
+        return {"error": str(e)}
+
+    return FileResponse(out_path, filename=fname,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 # ── SAS Dataset Charting ──────────────────────────────────────────────────
 
 
