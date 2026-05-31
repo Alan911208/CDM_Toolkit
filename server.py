@@ -1093,21 +1093,23 @@ async def api_sas_batch_to_xlsx(
                 except Exception:
                     pass
 
-            # Header row: 变量名(label)
+            # Row 1: 变量名, Row 2: label
             for ci, col in enumerate(df.columns, 1):
-                label = label_map.get(str(col), "")
-                header = f"{col}({label})" if label else str(col)
-                cell = ws.cell(row=1, column=ci, value=header)
+                cell = ws.cell(row=1, column=ci, value=str(col))
                 cell.font = header_font
                 cell.fill = header_fill
+                label = label_map.get(str(col), "")
+                if label:
+                    lbl_cell = ws.cell(row=2, column=ci, value=label)
+                    lbl_cell.font = Font(color="666666", italic=True, size=10)
 
-            # Data rows
+            # Data rows (start from row 3)
             for ri, (_, row) in enumerate(df.iterrows()):
                 for ci, col in enumerate(df.columns, 1):
                     val = row[col]
                     if isinstance(val, float) and pd.isna(val):
                         val = None
-                    ws.cell(row=ri + 2, column=ci, value=val)
+                    ws.cell(row=ri + 3, column=ci, value=val)
 
             # Auto-width
             for col_cells in ws.columns:
