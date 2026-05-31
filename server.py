@@ -944,9 +944,72 @@ async def api_sas_status(job_id: str):
         return {"error": "任务不存在"}
     return {
         "status": job["status"],
-        "log": job["log"],
+        "log": job.get("log", ""),
+        "parsed": job.get("parsed"),
         "elapsed": round(_time.time() - job["start_time"], 1),
     }
+
+
+def _parse_sas_log(log_text: str) -> dict:
+    """Parse SAS log into structured sections: errors, warnings, notes, output files."""
+    import re
+    result = {
+        "errors": [],
+        "warnings": [],
+        "notes": [],
+        "output_files": [],
+        "real_time": "",
+        "cpu_time": "",
+        "has_error": False,
+        "has_warning": False,
+    }
+
+    lines = log_text.split("\n")
+    current = None
+    buf = []
+
+    for line in lines:
+        # Detect line type
+        stripped = line.strip()
+        upper = stripped.upper()
+
+        if re.match(r"^ERROR\b", upper) or re.match(r"^ERROR:", upper):
+            if buf and current: result[current].append("\n".join(buf))
+            current, buf = "errors", [line]
+            result["has_error"] = True
+        elif re.match(r"^WARNING\b", upper) or re.match(r"^WARNING:", upper):
+            if buf and current: result[current].append("\n".join(buf))
+            current, buf = "warnings", [line]
+            result["has_warning"] = True
+        elif re.match(r"^NOTE:", upper):
+            # Check for output file references
+            file_match = re.search(r"written to\s+(\S+)", stripped, re.IGNORECASE)
+            if file_match:
+                fname = file_match.group(1).strip('"')
+                result["output_files"].append({"path": fname, "name": os.path.basename(fname)})
+            if buf and current: result[current].append("\n".join(buf))
+            current, buf = "notes", [line]
+        elif re.match(r"^NOTE\b", upper) and ("SAS" in upper or "PROCEDURE" in upper or "DATA" in upper or "used" in upper):
+            if buf and current: result[current].append("\n".join(buf))
+            current, buf = "notes", [line]
+        elif re.search(r"real time\s", stripped, re.IGNORECASE):
+            result["real_time"] = stripped.strip()
+        elif re.search(r"cpu time\s", stripped, re.IGNORECASE):
+            result["cpu_time"] = stripped.strip()
+        else:
+            if current:
+                buf.append(line)
+
+    # Flush last buffer
+    if buf and current:
+        result[current].append("\n".join(buf))
+
+    # Limit each category
+    for key in ("errors", "warnings", "notes"):
+        if len(result[key]) > 50:
+            result[key] = result[key][:50]
+
+    return result
 
 
 async def _run_sas(job_id: str, sas_code: str, config_path: str):
@@ -1017,6 +1080,7 @@ OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
             job["status"] = "completed" if proc.returncode == 0 else "error"
             job["log"] = log_text[-50000:]  # last 50k chars
             job["returncode"] = proc.returncode
+            job["parsed"] = _parse_sas_log(log_text)
 
     except Exception as e:
         if job:

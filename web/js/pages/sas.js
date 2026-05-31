@@ -42,12 +42,21 @@ export default function render() {
         <div class="sas-editor-container">
           <textarea id="sas-editor" class="sas-editor" placeholder="粘贴 SAS 代码，或点击左侧宏列表加载模板..." spellcheck="false"></textarea>
         </div>
-        <div class="sas-log-header" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
-          <h4 style="margin:0;">📋 SAS 日志输出</h4>
-          <button id="sas-clear-log" class="btn btn-outline" style="font-size:12px;padding:4px 12px;">清空</button>
+        <!-- Output Panel -->
+        <div class="sas-output" id="sas-output" style="margin-top:12px;display:none;">
+          <!-- Summary Bar -->
+          <div class="sas-summary" id="sas-summary"></div>
+          <!-- Output Files -->
+          <div id="sas-output-files" style="margin-top:12px;"></div>
+          <!-- Log Sections -->
+          <div class="sas-sections" id="sas-sections" style="margin-top:12px;"></div>
+          <!-- Raw Log Toggle -->
+          <div style="margin-top:8px;">
+            <button id="sas-toggle-raw" class="btn btn-outline" style="font-size:11px;padding:4px 10px;">📄 查看原始日志</button>
+          </div>
+          <pre id="sas-raw-log" class="sas-log" style="display:none;margin-top:8px;"></pre>
         </div>
-        <pre id="sas-log" class="sas-log">等待执行...</pre>
-        <div id="sas-workspace-hint" style="margin-top:12px;"></div>
+        <div id="sas-waiting" style="margin-top:12px;padding:24px;text-align:center;color:#999;background:var(--color-surface);border-radius:var(--radius);">等待执行...</div>
       </div>
     </div>
     <pipeline-nav context="sas"></pipeline-nav>
@@ -67,7 +76,21 @@ export default function render() {
       .sas-editor-container { border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; }
       .sas-editor { width: 100%; min-height: 300px; padding: 16px; border: none; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.5; resize: vertical; background: #1E1E1E; color: #D4D4D4; tab-size: 2; }
       .sas-editor:focus { outline: none; }
-      .sas-log { background: #0C0C0C; color: #CCCCCC; padding: 16px; border-radius: var(--radius); font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.4; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 0 0; }
+      .sas-log { background: #0C0C0C; color: #CCCCCC; padding: 16px; border-radius: var(--radius); font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.4; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 8px 0 0 0; }
+      .sas-summary { display: flex; gap: 12px; flex-wrap: wrap; }
+      .sas-stat { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+      .sas-stat.ok { background: #E8F5E9; color: #2E7D32; }
+      .sas-stat.warn { background: #FFF3E0; color: #E65100; }
+      .sas-stat.err { background: #FFEBEE; color: #C62828; }
+      .sas-stat.info { background: #E3F2FD; color: #1565C0; }
+      .sas-output-files { display: flex; flex-wrap: wrap; gap: 8px; }
+      .sas-output-file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #E8F5E9; border-radius: 8px; font-size: 12px; font-family: monospace; }
+      .sas-section { margin-top: 8px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; }
+      .sas-section-header { padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+      .sas-section-header.err { background: #FFEBEE; color: #C62828; }
+      .sas-section-header.warn { background: #FFF3E0; color: #E65100; }
+      .sas-section-header.note { background: #F5F5F5; color: #666; }
+      .sas-section-body { padding: 8px 14px; font-family: 'Consolas', monospace; font-size: 11px; line-height: 1.4; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; background: #FAFAFA; }
       .sas-cat { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: 0.5px; }
       .sas-macro-item { display: block; width: 100%; padding: 8px 12px; text-align: left; border: none; background: none; cursor: pointer; font-size: 13px; font-family: var(--font); color: var(--color-text); border-left: 3px solid transparent; transition: all 0.15s; }
       .sas-macro-item:hover { background: #E3F2FD; }
@@ -96,10 +119,73 @@ export async function init() {
   const listEl = document.getElementById('sas-macro-list');
   const editor = document.getElementById('sas-editor');
   const runBtn = document.getElementById('sas-run-btn');
-  const logEl = document.getElementById('sas-log');
+  const outputPanel = document.getElementById('sas-output');
+  const waitingEl = document.getElementById('sas-waiting');
+  const summaryEl = document.getElementById('sas-summary');
+  const outputFilesEl = document.getElementById('sas-output-files');
+  const sectionsEl = document.getElementById('sas-sections');
+  const rawLogEl = document.getElementById('sas-raw-log');
+  const toggleRawBtn = document.getElementById('sas-toggle-raw');
   const infoEl = document.getElementById('sas-macro-info');
   const statusBadge = document.getElementById('sas-status-badge');
   const freeModeBtn = document.getElementById('sas-free-mode');
+
+  // ── Output Renderer ──
+  function renderOutput(parsed, status, elapsed) {
+    outputPanel.style.display = '';
+    waitingEl.style.display = 'none';
+
+    // Summary stats
+    const hasErr = parsed && parsed.has_error;
+    const hasWarn = parsed && parsed.has_warning;
+    const nErr = parsed ? parsed.errors.length : 0;
+    const nWarn = parsed ? parsed.warnings.length : 0;
+    const nNote = parsed ? parsed.notes.length : 0;
+    const nFiles = parsed ? parsed.output_files.length : 0;
+    const realTime = parsed ? parsed.real_time : '';
+
+    let statusClass = 'ok', statusIcon = '✅', statusText = '执行成功';
+    if (status === 'error' || hasErr) { statusClass = 'err'; statusIcon = '❌'; statusText = '执行出错'; }
+    else if (hasWarn) { statusClass = 'warn'; statusIcon = '⚠️'; statusText = '执行完成（有警告）'; }
+
+    summaryEl.innerHTML = `
+      <div class="sas-stat ${statusClass}">${statusIcon} ${statusText}</div>
+      <div class="sas-stat info">⏱ ${elapsed || '?'} 秒${realTime ? ' · ' + realTime : ''}</div>
+      ${nErr > 0 ? `<div class="sas-stat err">❌ ${nErr} 错误</div>` : ''}
+      ${nWarn > 0 ? `<div class="sas-stat warn">⚠️ ${nWarn} 警告</div>` : ''}
+      ${nNote > 0 ? `<div class="sas-stat info">📝 ${nNote} 条记录</div>` : ''}
+      ${nFiles > 0 ? `<div class="sas-stat ok">📄 ${nFiles} 个输出文件</div>` : ''}`;
+
+    // Output files
+    if (nFiles > 0) {
+      outputFilesEl.innerHTML = '<div style="font-size:12px;font-weight:600;margin-bottom:4px;">📂 生成的文件</div><div class="sas-output-files">' +
+        parsed.output_files.map(f => `<span class="sas-output-file">📄 ${f.name}<span style="color:#999;font-size:10px;">${f.path}</span></span>`).join('') +
+        '</div>';
+    } else {
+      outputFilesEl.innerHTML = '';
+    }
+
+    // Log sections (errors first, then warnings, then notes)
+    let secHtml = '';
+    if (nErr > 0) {
+      secHtml += `<div class="sas-section"><div class="sas-section-header err" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">❌ 错误 (${nErr}) <span>▶</span></div><div class="sas-section-body">${parsed.errors.map(e => h(e)).join('\n\n')}</div></div>`;
+    }
+    if (nWarn > 0) {
+      secHtml += `<div class="sas-section"><div class="sas-section-header warn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">⚠️ 警告 (${nWarn}) <span>▶</span></div><div class="sas-section-body">${parsed.warnings.map(e => h(e)).join('\n\n')}</div></div>`;
+    }
+    if (nNote > 0 && nNote <= 10) {
+      secHtml += `<div class="sas-section"><div class="sas-section-header note" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">📝 关键记录 (${nNote}) <span>▶</span></div><div class="sas-section-body">${parsed.notes.map(e => h(e)).join('\n\n')}</div></div>`;
+    }
+    sectionsEl.innerHTML = secHtml;
+  }
+
+  function h(str) { return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  toggleRawBtn.addEventListener('click', () => {
+    const show = rawLogEl.style.display === 'none';
+    rawLogEl.style.display = show ? '' : 'none';
+    toggleRawBtn.textContent = show ? '📄 隐藏原始日志' : '📄 查看原始日志';
+  });
 
   // ── Init Session (client-managed UUID) ──
   if (!localStorage.getItem('cdm_session')) {
@@ -171,7 +257,7 @@ export async function init() {
     editor.value = `/* ── 自由代码模式 ── 粘贴任意 SAS 程序 ── */
 ${sasEnvTemplate()}
 `;
-    logEl.textContent = '就绪 — 粘贴代码后点击"执行 SAS 程序"';
+    waitingEl.textContent = '就绪 — 粘贴代码后点击"执行 SAS 程序"';
     editor.focus();
   });
 
@@ -246,7 +332,7 @@ ${sasEnvTemplate()}`;
       }
 
       editor.value = code;
-      logEl.textContent = '准备就绪 — 修改参数后点击"执行 SAS 程序"';
+      waitingEl.textContent = '准备就绪 — 修改参数后点击"执行 SAS 程序"';
     } catch (err) {
       editor.value = `/* 加载失败: ${err.message} */`;
     }
@@ -259,7 +345,7 @@ ${sasEnvTemplate()}`;
 
     const config = document.getElementById('sas-config').value;
     runBtn.textContent = '⏳ 执行中...';
-    logEl.textContent = '提交 SAS 任务...';
+    waitingEl.textContent = '提交 SAS 任务...';
     statusBadge.textContent = '';
 
     try {
@@ -270,50 +356,60 @@ ${sasEnvTemplate()}`;
       });
       const data = await res.json();
       if (data.error) {
-        logEl.textContent = `❌ ${data.error}`;
+        rawLogEl.textContent = `❌ ${data.error}`;
         runBtn.textContent = '▶ 执行 SAS 程序';
         return;
       }
 
       const jobId = data.job_id;
       statusBadge.textContent = `任务: ${jobId}`;
-      logEl.textContent = 'SAS 执行中...\n';
+      waitingEl.style.display = '';
+      waitingEl.textContent = 'SAS 执行中...';
+      outputPanel.style.display = 'none';
 
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(async () => {
         try {
           const sr = await fetch(`/api/sas-status/${jobId}`);
           const sj = await sr.json();
-          logEl.textContent = sj.log || '(无输出)';
-          logEl.scrollTop = logEl.scrollHeight;
+          rawLogEl.textContent = sj.log || '(无输出)';
 
-          if (sj.status === 'completed') {
+          // Show structured output when completed
+          if (sj.status === 'completed' || sj.status === 'error') {
             clearInterval(pollTimer); pollTimer = null;
             const elapsed = sj.elapsed || 0;
-            statusBadge.textContent = `✅ 完成 (${elapsed}秒)`;
+            statusBadge.textContent = sj.status === 'completed' ? `✅ 完成 (${elapsed}秒)` : `❌ 错误`;
             runBtn.textContent = '▶ 执行 SAS 程序';
-            logEl.textContent += `\n\n/* ══ SAS 执行完成 (${elapsed}秒) ══ */`;
-            const hint = document.getElementById('sas-workspace-hint');
-            if (hint) hint.innerHTML = '<div style="background:#E8F5E9;padding:12px;border-radius:8px;font-size:13px;">💡 SAS 执行完毕。如果生成了 Excel 文件，请前往 <a href="/" data-route="/" style="color:var(--color-primary);">仪表盘</a> 上传到工作区继续处理。</div>';
-          } else if (sj.status === 'error') {
-            clearInterval(pollTimer); pollTimer = null;
-            statusBadge.textContent = `❌ 错误`;
-            runBtn.textContent = '▶ 执行 SAS 程序';
-            logEl.textContent += '\n\n/* ══ SAS 执行出错 ══ */';
+            if (sj.parsed) {
+              renderOutput(sj.parsed, sj.status, elapsed);
+            } else {
+              waitingEl.style.display = 'none';
+              outputPanel.style.display = '';
+              summaryEl.innerHTML = `<div class="sas-stat ${sj.status === 'completed' ? 'ok' : 'err'}">${sj.status === 'completed' ? '✅' : '❌'} 执行${sj.status === 'completed' ? '完成' : '出错'} · ${elapsed}秒</div>`;
+            }
           } else if (sj.status === 'timeout') {
             clearInterval(pollTimer); pollTimer = null;
             statusBadge.textContent = `⏰ 超时`;
             runBtn.textContent = '▶ 执行 SAS 程序';
+            waitingEl.style.display = 'none';
+            outputPanel.style.display = '';
+            summaryEl.innerHTML = '<div class="sas-stat err">⏰ SAS 执行超时（300 秒）</div>';
           }
         } catch (_) {}
       }, 1000);
     } catch (err) {
-      logEl.textContent = `❌ 请求失败: ${err.message}`;
+      rawLogEl.textContent = `❌ 请求失败: ${err.message}`;
       runBtn.textContent = '▶ 执行 SAS 程序';
     }
   });
 
-  document.getElementById('sas-clear-log').addEventListener('click', () => {
-    logEl.textContent = '';
-  });
+  const clearBtn = document.getElementById('sas-clear-log');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      outputPanel.style.display = 'none';
+      waitingEl.style.display = '';
+      waitingEl.textContent = '日志已清空';
+      rawLogEl.textContent = '';
+    });
+  }
 }
