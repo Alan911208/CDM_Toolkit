@@ -957,6 +957,9 @@ async def _run_sas(job_id: str, sas_code: str, config_path: str):
     log_file = os.path.join(tmp_dir, "sas_output.log")
     lst_file = os.path.join(tmp_dir, "sas_output.lst")
 
+    # Encoding: zh config → GBK, u8 config → UTF-8
+    file_encoding = "gbk" if "zh" in config_path.lower() else "utf-8"
+
     # Include SASAUTOS so macros can %include helpers from their directory
     sas_autos = str(SAS_MACROS_DIR).replace("\\", "/")
     header = f"""
@@ -968,7 +971,7 @@ OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
     full_code = header + "\n" + sas_code
 
     try:
-        with open(sas_file, "w", encoding="utf-8") as f:
+        with open(sas_file, "w", encoding=file_encoding) as f:
             f.write(full_code)
 
         cmd = [
@@ -998,10 +1001,10 @@ OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
                 job["log"] = "⚠️ SAS 执行超时（300 秒）"
             return
 
-        # Read log
+        # Read log with correct encoding
         log_text = ""
         if os.path.exists(log_file):
-            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            with open(log_file, "r", encoding=file_encoding, errors="replace") as f:
                 log_text = f.read()
 
         # Append stdout/stderr
