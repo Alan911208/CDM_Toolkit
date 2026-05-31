@@ -125,41 +125,6 @@ async def api_scan_chars(
     return {"findings": all_findings, "total": len(all_findings), "system": system}
 
 
-@app.get("/api/file-tree")
-async def api_file_tree(path: str = ""):
-    """Return children of a directory for tree browsing. Default to drives on Windows."""
-    if not path:
-        import string
-        drives = []
-        for letter in string.ascii_uppercase:
-            p = f"{letter}:\\"
-            if os.path.exists(p):
-                drives.append({"name": p, "path": p, "is_dir": True})
-        return {"path": "", "items": drives}
-
-    if not os.path.exists(path):
-        return {"error": f"路径不存在: {path}"}
-
-    items = []
-    try:
-        for entry in sorted(os.scandir(path), key=lambda e: (not e.is_dir(), e.name.lower())):
-            info = {
-                "name": entry.name,
-                "path": entry.path,
-                "is_dir": entry.is_dir(),
-            }
-            if not entry.is_dir():
-                try:
-                    info["size"] = entry.stat().st_size
-                except OSError:
-                    info["size"] = 0
-            items.append(info)
-    except PermissionError:
-        return {"error": "权限不足", "items": []}
-
-    return {"path": path, "items": items}
-
-
 @app.post("/api/file-listing")
 async def api_file_listing(
     path: str = Form(...),

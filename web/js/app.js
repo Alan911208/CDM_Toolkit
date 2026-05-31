@@ -14,7 +14,6 @@ const ROUTES = {
   '/merge':  { title: '工作簿合并', page: 'merge.js' },
   '/split':  { title: '工作表拆分', page: 'split.js' },
   '/scan':   { title: '特殊字符扫描', page: 'scan.js' },
-  '/files':  { title: '文件目录浏览', page: 'files.js' },
   '/dates':  { title: '日期计算', page: 'dates.js' },
   '/units':  { title: '单位转换', page: 'units.js' },
   '/clean':     { title: '数据清理', page: 'clean.js' },
