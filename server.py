@@ -1054,6 +1054,7 @@ async def api_sas_batch_to_xlsx(
     header_font = Font(color="FFFFFF", bold=True, size=11)
     xlsx_files = []
 
+    failed = 0
     for f in files:
         fname = f.filename or "dataset.sas7bdat"
         base = os.path.splitext(fname)[0]
@@ -1068,49 +1069,63 @@ async def api_sas_batch_to_xlsx(
             try:
                 df, meta = pyreadstat.read_sas7bdat(in_path, encoding="utf-8")
             except Exception:
-                df = pd.read_sas(in_path, encoding="utf-8")
-                meta = None
+                try:
+                    df = pd.read_sas(in_path, encoding="utf-8")
+                    meta = None
+                except Exception:
+                    failed += 1
+                    continue
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = base[:31]
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = base[:31]
 
-        # Header row: 变量名(label)
-        for ci, col in enumerate(df.columns, 1):
-            label = ""
-            if meta and hasattr(meta, 'column_labels'):
-                labels = meta.column_labels
-                idx = list(df.columns).index(col) if col in df.columns else ci - 1
-                if idx < len(labels) and labels[idx] and str(labels[idx]).strip():
-                    label = str(labels[idx]).strip()
-            header = f"{col}({label})" if label else str(col)
-            cell = ws.cell(row=1, column=ci, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
+            # Build label map: col_name → label
+            label_map = {}
+            if meta is not None:
+                try:
+                    col_names = meta.column_names if hasattr(meta, 'column_names') else []
+                    col_labels = meta.column_labels if hasattr(meta, 'column_labels') else []
+                    for i, cn in enumerate(col_names):
+                        if i < len(col_labels) and col_labels[i] and str(col_labels[i]).strip():
+                            label_map[str(cn)] = str(col_labels[i]).strip()
+                except Exception:
+                    pass
 
-        # Data rows
-        for ri, (_, row) in enumerate(df.iterrows()):
+            # Header row: 变量名(label)
             for ci, col in enumerate(df.columns, 1):
-                val = row[col]
-                if isinstance(val, float) and pd.isna(val):
-                    val = None
-                ws.cell(row=ri + 2, column=ci, value=val)
+                label = label_map.get(str(col), "")
+                header = f"{col}({label})" if label else str(col)
+                cell = ws.cell(row=1, column=ci, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
 
-        # Auto-width
-        for col_cells in ws.columns:
-            col_letter = get_column_letter(col_cells[0].column)
-            max_len = 0
-            for cell in col_cells[:50]:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
-            ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 40)
+            # Data rows
+            for ri, (_, row) in enumerate(df.iterrows()):
+                for ci, col in enumerate(df.columns, 1):
+                    val = row[col]
+                    if isinstance(val, float) and pd.isna(val):
+                        val = None
+                    ws.cell(row=ri + 2, column=ci, value=val)
 
-        xlsx_path = os.path.join(tmp_out, f"{base}.xlsx")
-        wb.save(xlsx_path)
-        xlsx_files.append(xlsx_path)
+            # Auto-width
+            for col_cells in ws.columns:
+                col_letter = get_column_letter(col_cells[0].column)
+                max_len = 0
+                for cell in col_cells[:50]:
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+                ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 40)
+
+            xlsx_path = os.path.join(tmp_out, f"{base}.xlsx")
+            wb.save(xlsx_path)
+            xlsx_files.append(xlsx_path)
+        except Exception:
+            failed += 1
 
     if not xlsx_files:
-        return {"error": "转换失败"}
+        return {"error": f"转换失败 — {failed}/{len(files)} 个文件处理出错"}
 
     if len(xlsx_files) == 1:
         return FileResponse(xlsx_files[0], filename=os.path.basename(xlsx_files[0]),
