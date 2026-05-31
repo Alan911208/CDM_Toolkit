@@ -1327,6 +1327,7 @@ def generate_chart_from_sas(
     -------
     str — path to the output .xlsx file
     """
+    import pandas as pd
     from openpyxl.chart import BarChart, LineChart, PieChart, ScatterChart, Reference
     from openpyxl.chart.series import DataPoint
     from openpyxl.utils import get_column_letter
@@ -1357,7 +1358,7 @@ def generate_chart_from_sas(
     for ri, (_, row) in enumerate(df.iterrows()):
         for ci, h in enumerate(headers, 1):
             val = row.get(h)
-            if isinstance(val, float) and (pd.isna(val) or pd.isna(val)):
+            if isinstance(val, float) and (pd.isna(val)):
                 val = None
             ws_data.cell(row=ri + 2, column=ci, value=val)
 
