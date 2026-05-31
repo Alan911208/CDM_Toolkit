@@ -978,7 +978,7 @@ OPTIONS SASAUTOS=("{sas_autos}" SASAUTOS);
             "-log", log_file,
             "-print", lst_file,
             "-nosplash", "-nologo",
-            "-nods", "-nonumber", "-nodate",
+            "-nodms", "-nonumber", "-nodate",
         ]
 
         proc = await asyncio.create_subprocess_exec(
