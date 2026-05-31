@@ -1542,44 +1542,45 @@ def compare_datasets_summary(
             results.append(entry); continue
 
         summary["matched"] += 1
-        df_old = sas_to_dataframe(old_files[name])
-        df_new = sas_to_dataframe(new_files[name])
+        try:
+            df_old = sas_to_dataframe(old_files[name])
+            df_new = sas_to_dataframe(new_files[name])
+        except Exception as e:
+            entry["status"] = "error"
+            entry["error"] = f"读取失败: {e}"
+            results.append(entry)
+            continue
+
         old_cols = set(df_old.columns); new_cols = set(df_new.columns)
         entry["old_rows"] = len(df_old); entry["new_rows"] = len(df_new)
         entry["added_vars"] = sorted(new_cols - old_cols)
         entry["removed_vars"] = sorted(old_cols - new_cols)
 
-        # Row-level with keys
         common_vars = sorted(old_cols & new_cols)
         if key_list and all(k in df_old.columns and k in df_new.columns for k in key_list):
-            # Use merge to handle duplicates safely
-            old_sub = df_old[key_list].astype(str).copy()
-            new_sub = df_new[key_list].astype(str).copy()
-            old_sub["_key"] = old_sub.agg("|".join, axis=1)
-            new_sub["_key"] = new_sub.agg("|".join, axis=1)
-            old_set = set(old_sub["_key"]); new_set = set(new_sub["_key"])
-            entry["added_rows"] = int(len(new_set - old_set))
-            entry["removed_rows"] = int(len(old_set - new_set))
-            common = old_set & new_set
-            if common:
-                # Compare common keys row-by-row via merge
-                df_old = df_old.copy()
-                df_new = df_new.copy()
-                df_old["_key"] = old_sub["_key"].values
-                df_new["_key"] = new_sub["_key"].values
-                o_c = df_old[df_old["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
-                n_c = df_new[df_new["_key"].isin(common)].drop(columns=["_key"]).reset_index(drop=True)
-                # Only compare if row counts match
-                if len(o_c) == len(n_c):
-                    mods = []
-                    for col in common_vars:
-                        if col in o_c.columns and col in n_c.columns:
-                            d = (o_c[col].fillna("__NA__") != n_c[col].fillna("__NA__")).sum()
-                            if d > 0: mods.append(f"{col}({d})")
-                    entry["modified_vars"] = mods[:20]
-                    entry["modified_rows"] = int((o_c.fillna("__NA__").values != n_c.fillna("__NA__").values).any(axis=1).sum())
-                else:
-                    entry["modified_rows"] = abs(len(o_c) - len(n_c))
+            try:
+                # Simple approach: compare key sets only, skip value-level comparison
+                old_keys = df_old[key_list].astype(str).agg("|".join, axis=1)
+                new_keys = df_new[key_list].astype(str).agg("|".join, axis=1)
+                entry["added_rows"] = int((~new_keys.isin(old_keys)).sum())
+                entry["removed_rows"] = int((~old_keys.isin(new_keys)).sum())
+                # Count modified rows where key matches but values differ
+                common = set(old_keys) & set(new_keys)
+                if common:
+                    o_idx = old_keys[old_keys.isin(common)]
+                    n_idx = new_keys[new_keys.isin(common)]
+                    if len(o_idx) == len(n_idx):
+                        o_sub = df_old.loc[o_idx.index, common_vars].fillna("__NA__")
+                        n_sub = df_new.loc[n_idx.index, common_vars].fillna("__NA__")
+                        entry["modified_rows"] = int((o_sub.values != n_sub.values).any(axis=1).sum())
+                    else:
+                        entry["modified_rows"] = abs(len(o_idx) - len(n_idx))
+            except Exception as e:
+                entry["modified_vars"] = [f"比较出错: {e}"]
+
+        is_identical = (not entry["added_vars"] and not entry["removed_vars"] and
+                        not entry["added_rows"] and not entry["removed_rows"] and
+                        not entry.get("modified_rows", 0) and entry["old_rows"] == entry["new_rows"])
 
         is_identical = (not entry["added_vars"] and not entry["removed_vars"] and
                         not entry["added_rows"] and not entry["removed_rows"] and
